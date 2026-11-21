@@ -141,8 +141,13 @@ export default function RoomScene(props: Props) {
         if (near && prompt) {
           projected.copy(near === 'shelf' ? shelfPosition : deskAnchor).project(camera)
           const width = mount.clientWidth, height = mount.clientHeight, half = Math.min(155, (width - 32) / 2)
-          prompt.style.setProperty('--target-x', `${THREE.MathUtils.clamp((projected.x + 1) * width / 2, half + 16, width - half - 16)}px`)
-          prompt.style.setProperty('--target-y', `${THREE.MathUtils.clamp((1 - projected.y) * height / 2, 80, height - 160)}px`)
+          const sx = (projected.x + 1) * width / 2, sy = (1 - projected.y) * height / 2
+          const px = THREE.MathUtils.clamp(sx, half + 16, width - half - 16)
+          // The viewmodel occupies the lower-right: put carried-book actions
+          // above it, keeping a connector at the actual projected object.
+          const py = carrying ? THREE.MathUtils.clamp(sy, Math.min(160, height * .4), height * .48) : THREE.MathUtils.clamp(sy, 80, height - 160)
+          prompt.style.setProperty('--target-x', `${px}px`); prompt.style.setProperty('--target-y', `${py}px`)
+          prompt.style.setProperty('--pin-offset-x', `${sx - px}px`); prompt.style.setProperty('--pin-drop', `${Math.max(0, sy - py)}px`)
         }
         // Reduce only the 3D framebuffer on sustained slow rendering; HTML text,
         // HUD and reader stay at native resolution. No GPU-performance promise.
