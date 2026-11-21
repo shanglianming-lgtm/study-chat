@@ -4,6 +4,24 @@ import { isHttpUrl, pageForPosition, pageForSection, paginate, processRecordHtml
 import { conversationSections, mockReply } from './content'
 
 describe('safe manuscript rendering', () => {
+  it('binds unfinished inline emphasis and code as printed text rather than raw delimiters', () => {
+    for (const [source, selector, expected] of [['- **允许答案变', 'strong', '允许答案变'], ['留一点 *空间', 'p em', '空间'], ['代码 `partial', 'p code', 'partial']]) {
+      const element = document.createElement('div')
+      element.innerHTML = safeMarkdown(stoppedManuscript(source))
+      expect(element.querySelector(selector)?.textContent).toBe(expected)
+      expect(element.textContent).toContain('本轮已停笔。')
+    }
+    const element = document.createElement('div')
+    element.innerHTML = safeMarkdown(stoppedManuscript('```ts\nconst literal = "**not formatting"\n```'))
+    expect(element.querySelector('pre code')?.textContent).toBe('const literal = "**not formatting"\n')
+  })
+  it('does not turn a stopped incomplete destination into an actionable partial URL', () => {
+    const element = document.createElement('div')
+    element.innerHTML = safeMarkdown(stoppedManuscript('来源 [中文来源](https://exampl'))
+    expect(element.textContent).toContain('中文来源')
+    expect(element.textContent).not.toContain('[中文来源](')
+    expect(element.querySelector('a[href]')).toBeNull()
+  })
   it('binds a stop notice outside an unfinished code fence without losing partial code', () => {
     const element = document.createElement('div')
     element.innerHTML = safeMarkdown(stoppedManuscript('前文\n\n```typescript\nconst reflection = {'))

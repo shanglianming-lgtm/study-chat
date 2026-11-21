@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
 import { marked, Renderer } from 'marked'
 import { parse as parseDomain } from 'tldts'
+import remend from 'remend'
 import { SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
 
 export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; live?: boolean; tocStart?: number; tocEnd?: number; offset?: number; number?: number; folio?: string }
@@ -83,7 +84,8 @@ export function isHttpUrl(url: string): boolean {
 export function stoppedManuscript(markdown: string): string {
   const fences = [...markdown.matchAll(/^\s*(`{3,}|~{3,})/gm)]
   const close = fences.length % 2 ? `\n${fences.at(-1)![1]}` : ''
-  return `${markdown}${close}\n\n*本轮已停笔。*`
+  const bound = remend(markdown + close, { linkMode: 'text-only', images: false, katex: false, comparisonOperators: false, htmlTags: false, setextHeadings: false, singleTilde: false })
+  return `${bound}\n\n*本轮已停笔。*`
 }
 
 // Trim a deep clone instead of Range.cloneContents, which loses ancestors when
