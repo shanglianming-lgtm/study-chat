@@ -54,7 +54,7 @@ export default function RoomScene(props: Props) {
     let yaw = .1, pitch = -.05, entered = false, paused = false, carrying = false, reading = false, disposed = false, dirty = true
     void ready.then(() => { if (!disposed) { dirty = true; renderer.shadowMap.needsUpdate = true } })
     let wantsCapture = true, recapture = false
-    let renderScale = 1, lastRenderedAt = 0, frameAverage = 16.7, renderSamples = 0, renderedPreviousFrame = false
+    let renderScale = 1, lastRenderedAt = 0, frameAverage = 16.7, renderSamples = 0, renderedPreviousFrame = false, lastMotionAt = -Infinity
     const keys = new Set<string>(), reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
     const shelfPosition = new THREE.Vector3(-1.53, 1.61, -3.0), deskPosition = new THREE.Vector3(2.15, .99, -2.58)
     const shelfRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), deskRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
@@ -105,7 +105,7 @@ export default function RoomScene(props: Props) {
     latest.current.controlsRef.current = {
       enter: lock, interact,
       press: key => { if (entered && !paused) keys.add(key) }, release: key => { keys.delete(key) },
-      turn: angle => { if (entered && !paused && !reading && !active) { yaw += angle; dirty = true } },
+      turn: angle => { if (entered && !paused && !reading && !active) { yaw += angle; lastMotionAt = performance.now(); dirty = true } },
     }
     const resize = new ResizeObserver(() => { const { width, height } = mount.getBoundingClientRect(); renderer.setSize(Math.max(1, width), Math.max(1, height), false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix(); dirty = true }); resize.observe(mount)
     void document.fonts.ready.then(() => { if (!disposed) { repaint(); dirty = true } })
@@ -132,9 +132,10 @@ export default function RoomScene(props: Props) {
         let forward = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown')), side = Number(keys.has('KeyD')) - Number(keys.has('KeyA'))
         const len = Math.hypot(forward, side)
         if (len) { forward /= len; side /= len; const speed = 1.8 * dt; const dx = (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed, dz = (-Math.cos(yaw) * forward - Math.sin(yaw) * side) * speed; if (canStand(camera.position.x + dx, camera.position.z)) camera.position.x += dx; if (canStand(camera.position.x, camera.position.z + dz)) camera.position.z += dz }
-        if (len || turn) dirty = true
+        if (len || turn) { lastMotionAt = now; dirty = true }
       }
       updateCamera(); updateHand()
+      if (motion || active) lastMotionAt = now
       if (motion) {
         const t = reduced.matches ? 1 : ease((now - motion.start) / 650)
         book.position.lerpVectors(motion.from, motion.kind === 'take' ? handPosition : shelfPosition, t); book.quaternion.slerpQuaternions(motion.rotation, motion.kind === 'take' ? handRotation : shelfRotation, t); dirty = true
@@ -151,6 +152,12 @@ export default function RoomScene(props: Props) {
       // Keep the seated camera and the real window, lamp and desktop rendered.
       const showBook = !reading || !!state.journey
       if (book.visible !== showBook) { book.visible = showBook; renderer.shadowMap.needsUpdate = true; dirty = true }
+      if (software) {
+        // CPU backends trade only moving 3D pixels for response, then repaint
+        // one sharp still frame. HTML/HUD/reader never change resolution.
+        const scale = !paused && now - lastMotionAt < 250 ? .4 : 1
+        if (scale !== renderScale) { renderScale = scale; renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * scale); dirty = true }
+      }
       if (now - lastHUD > 120) { emit(); lastHUD = now }
       if (dirty) {
         const near = target(), prompt = latest.current.interactionRef.current
@@ -170,9 +177,9 @@ export default function RoomScene(props: Props) {
         const interval = now - lastRenderedAt
         // A long active frame is overload, not an idle gap. The old <180ms
         // cutoff kept resetting adaptation precisely on the slowest machines.
-        if (lastRenderedAt && consecutiveRender) { frameAverage += (Math.min(interval, 1000) - frameAverage) * .2; renderSamples++ }
+        if (!software && lastRenderedAt && consecutiveRender) { frameAverage += (Math.min(interval, 1000) - frameAverage) * .2; renderSamples++ }
         else { frameAverage = 16.7; renderSamples = 0 }
-        if (renderSamples >= 8 && frameAverage > 40 && renderScale > .65) {
+        if (!software && renderSamples >= 8 && frameAverage > 40 && renderScale > .65) {
           renderScale = Math.max(.65, renderScale * .85); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * renderScale); renderSamples = 0; frameAverage = 16.7
         }
         lastRenderedAt = now
@@ -197,7 +204,7 @@ export default function RoomScene(props: Props) {
       if (!entered || paused || reading || motion || active || latest.current.bookAway) return
       let dx = 0, dy = 0
       if (document.pointerLockElement === canvas) { dx = e.movementX; dy = e.movementY } else if (drag && drag.id === e.pointerId) { dx = e.clientX - drag.x; dy = e.clientY - drag.y; drag.distance += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY }
-      yaw -= dx * .0025; pitch = THREE.MathUtils.clamp(pitch - dy * .0025, -1.12, 1.05); if (dx || dy) dirty = true
+      yaw -= dx * .0025; pitch = THREE.MathUtils.clamp(pitch - dy * .0025, -1.12, 1.05); if (dx || dy) { lastMotionAt = performance.now(); dirty = true }
     }
     const pointerUp = () => { if (!paused && !reading && !motion && !active && !latest.current.bookAway) { if (document.pointerLockElement !== canvas && wantsCapture && drag && drag.distance < 5) requestCapture(); else if (document.pointerLockElement === canvas || drag && drag.distance < 5) interact() }; drag = null }
     const visibility = () => { if (document.hidden) pause() }
