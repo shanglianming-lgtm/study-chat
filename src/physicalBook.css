@@ -89,7 +89,7 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 .live-response .ink-actions{margin-top:10px;flex-shrink:0}
 .physical-reading .notes-spread{max-width:780px;transform:rotateX(3deg)}
 .physical-reading .notes-paper{width:100%;padding:0 9%;border-radius:3px 6px 6px 3px}
-.physical-reading .notes-scroll{scrollbar-width:thin}
+.physical-reading .notes-scroll{overflow-y:auto;scrollbar-width:thin}
 .written-entry{border:0;border-top:1px solid #b6a27b44;margin:25px 0 0;padding-top:3px}
 .written-entry h6{display:flex;justify-content:space-between}.written-entry h6 button{color:inherit;font-size:13px}
 .notes-scroll .live-response{height:340px;margin-top:25px}
