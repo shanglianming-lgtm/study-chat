@@ -17,7 +17,7 @@ export function buildStudy() {
     if (!materials.has(color)) {
       const map = woods.has(color) ? oak : fabrics.has(color) ? weave : walls.has(color) ? plaster : undefined
       const brass = ['#9b814f', '#a68a50', '#a68a52', '#96805c', '#9d7d4b'].includes(color)
-      materials.set(color, new THREE.MeshStandardMaterial({ color, map, bumpMap: map, bumpScale: woods.has(color) ? .012 : .004, roughness: brass ? .32 : woods.has(color) ? .62 : .95, metalness: brass ? .45 : 0 }))
+    materials.set(color, new THREE.MeshStandardMaterial({ color, ...(map ? { map, bumpMap: map, bumpScale: woods.has(color) ? .012 : .004 } : {}), roughness: brass ? .32 : woods.has(color) ? .62 : .95, metalness: brass ? .45 : 0 }))
     }
     return materials.get(color)!
   }
