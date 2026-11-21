@@ -138,6 +138,7 @@ body{min-width:0}
 .in-room .brand{pointer-events:auto;color:#f2e7d2}.in-room .brand-symbol{background:#e7dfc01a;color:#e9dfc3;border:1px solid #e9dfc044}.in-room .brand small{color:#ece2cc99}.in-room .header-right{display:none}
 .walk-room{position:fixed;inset:0;overflow:hidden;color:#f4ead5;background:#c2ac8c;font-family:Inter,"Microsoft YaHei","Noto Sans SC",sans-serif}
 .walk-canvas,.walk-canvas canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.walk-room.no-webgl .walk-canvas{visibility:hidden}
 .walk-shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(#241e161c,transparent 25%,transparent 60%,#201b1680)}
 .walk-location{position:absolute;right:36px;top:31px;text-align:right;pointer-events:none;display:flex;flex-direction:column;gap:8px;text-shadow:0 1px 8px #30251988}
 .walk-location>span{font-size:11px;letter-spacing:3px}.walk-location small{font:11px var(--serif);letter-spacing:1px;opacity:.7}

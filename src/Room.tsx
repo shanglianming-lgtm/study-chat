@@ -10,7 +10,7 @@ export default function Room({ onOpen, bookAway, shelfRef, journey, onReveal, on
   const controls = useRef<RoomControls | null>(null)
   const action = status.target === 'shelf' ? status.carrying ? '放回书架' : '取下这本书' : status.target === 'desk' ? '坐下，摊开书' : status.carrying ? '走近窗边书桌' : '走近书架取书'
   const pad = (key: string, label: string, icon: ReactNode) => <button aria-label={label} onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); controls.current?.press(key) }} onPointerUp={() => controls.current?.release(key)} onPointerCancel={() => controls.current?.release(key)} onLostPointerCapture={() => controls.current?.release(key)} onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); controls.current?.press(key) } }} onKeyUp={() => controls.current?.release(key)} onBlur={() => controls.current?.release(key)}>{icon}</button>
-  return <section className="walk-room" aria-label="第一人称书房">
+  return <section className={`walk-room${unavailable ? ' no-webgl' : ''}`} aria-label="第一人称书房">
     <RoomScene onOpen={onOpen} bookAway={bookAway} controlsRef={controls} journey={journey} onReveal={onReveal} onFinish={onFinish} onUnavailable={() => setUnavailable(true)} onStatus={setStatus} />
     <div className="walk-shade" />
     <div className="walk-location"><span>私人书房 / 午后</span><small>有些想法，值得慢一点。</small></div>
