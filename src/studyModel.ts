@@ -59,7 +59,7 @@ export function buildStudy() {
     ctx.fillStyle = '#bf996f'; ctx.fillRect(0, 0, 128, 512)
     for (let i = 0; i < 65; i++) { ctx.strokeStyle = i % 3 ? '#a47c4b33' : '#e2c19955'; ctx.lineWidth = .5; ctx.beginPath(); ctx.moveTo(i * 2, 0); ctx.bezierCurveTo(i * 2 + 12, 160, i * 2 - 8, 340, i * 2 + 2, 512); ctx.stroke() }
   })
-  const floorMat = new THREE.MeshStandardMaterial({ map: grain.map, bumpMap: oak, bumpScale: .008, roughness: .67 })
+  const floorMat = new THREE.MeshStandardMaterial({ map: grain.map, roughness: .67 })
   const floor = new THREE.InstancedMesh(new THREE.BoxGeometry(.328, .035, 2.31), floorMat, 72), floorMatrix = new THREE.Matrix4()
   let plank = 0
   for (let x = 0; x < 24; x++) for (let z = 0; z < 3; z++) {
@@ -84,7 +84,9 @@ export function buildStudy() {
     for (let i = 0; i < 11; i++) { const x = 10 + i * 24, y = 165 + noise(i) * 45; ctx.fillStyle = i % 2 ? '#71856d' : '#879a7b'; ctx.beginPath(); ctx.ellipse(x, y, 24, 32, -.2, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#64725b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 252); ctx.lineTo(x + 3, y - 13); ctx.stroke() }
   })
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(2.88, 2.08), new THREE.MeshBasicMaterial({ map: sky.map })); glass.position.set(2.15, 2.05, -3.35); scene.add(glass)
-  box([.055, 2.18, .065], [2.75, 2.05, -3.3], '#746a54'); box([3.3, .1, .28], [2.15, .89, -3.2], '#e1c7a1')
+  // The sill used to share the desk's exact y=.94 top over a .22m overlap.
+  // Separate the surfaces so oblique views cannot produce stepped z-fighting.
+  box([.055, 2.18, .065], [2.75, 2.05, -3.3], '#746a54'); box([3.3, .1, .28], [2.15, .96, -3.2], '#e1c7a1')
   box([3.03, .04, .07], [2.15, 2.02, -3.29], darkWood); box([.035, .14, .035], [2.79, 1.94, -3.23], '#9b814f')
   const rail = cylinder(.025, .025, 3.65, [2.07, 3.3, -3.14], '#96805c'); rail.rotation.z = Math.PI / 2
   for (const side of [.57, 3.65]) for (let i = 0; i < 9; i++) { const fold = cylinder(.055, .055, 3.1, [side + (i - 4) * .043, 1.68, -3.13 + Math.sin(i) * .028], i % 2 ? '#cbb795' : linen); fold.scale.z = .7 }

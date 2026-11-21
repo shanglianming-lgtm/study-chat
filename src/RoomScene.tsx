@@ -23,7 +23,9 @@ export default function RoomScene(props: Props) {
       if (latest.current.journey) { if (latest.current.journey.direction === 'out') latest.current.onReveal(); latest.current.onFinish() }
     }
     let renderer: THREE.WebGLRenderer
-    try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' }) } catch { fallback(); return }
+    // Reading repaints HTML over a cached room, often without another GL frame.
+    // Retain its color buffer for software/composited WebView repaint paths.
+    try { renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'low-power' }) } catch { fallback(); return }
     const { scene, book, lid, repaint, dispose } = buildStudy()
     const canvas = renderer.domElement; canvas.tabIndex = 0; canvas.setAttribute('aria-label', '第一人称书房：WASD 行走，鼠标转头，E 交互，Esc 暂停')
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
