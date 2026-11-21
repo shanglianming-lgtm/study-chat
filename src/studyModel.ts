@@ -199,8 +199,20 @@ export function buildStudy() {
     }
     return g
   }
-  plant([-2.27, 3.06, -3.05], 1.2)
-  for (let i = 0; i < 10; i++) ball([-2.5 + Math.sin(i) * .08, 3 - i * .12, -2.72], [.1, .075, .045], '#778c53')
+  // A low planter fits below the ceiling; vines have connected stems and leaves.
+  turned([[0, 0], [.1, 0], [.12, .015], [.17, .12], [.17, .15], [.155, .16], [.145, .135], [.14, .115], [0, .115]], [-2.36, 3.2, -3.06], '#b68c60')
+  cylinder(.14, .14, .01, [-2.36, 3.322, -3.06], '#524536')
+  for (const branch of [0, 1]) {
+    const x = -2.5 + branch * .22, count = branch ? 7 : 11
+    const stem: Point[] = [[-2.36, 3.32, -3.06], [x, 3.31, -2.88], [x, 3.2, -2.735]]
+    for (let i = 0; i < count; i++) {
+      const anchor: Point = [x + Math.sin(i * .8) * .026, 3.17 - i * .103, -2.735]
+      stem.push(anchor)
+      const leaf = mesh(surfaceGeometry(8, 10, (u, v) => new THREE.Vector3((u - .5) * .145 * Math.sin(v * Math.PI) ** .7, -v * .19, Math.sin(v * Math.PI) * (.024 - Math.abs(u - .5) * .032))), i % 2 ? '#708450' : '#8d9e66', anchor)
+      leaf.rotation.z = (i % 2 ? 1 : -1) * .68; leaf.rotation.y = Math.sin(i) * .3
+    }
+    tube(stem, .004, '#62744b')
+  }
   // Left: upholstered sage sofa, pillows, throw, side table, floor lamp, framed print.
   const sofa = new THREE.Group(); sofa.position.set(-3.28, 0, -.05); sofa.rotation.y = Math.PI / 2; scene.add(sofa)
   box([2.47, .15, .98], [0, .31, 0], darkWood, sofa, .055)
@@ -335,7 +347,7 @@ export function buildStudy() {
   })
   const cover = new THREE.Mesh(new THREE.PlaneGeometry(.73, 1.06), new THREE.MeshStandardMaterial({ map: title.map })); cover.position.set(.385, 0, .014); lid.add(cover)
   const spine = texture(128, 768, ctx => { ctx.fillStyle = '#536447'; ctx.fillRect(0, 0, 128, 768); ctx.fillStyle = '#f1e6c8'; ctx.textAlign = 'center'; ctx.font = '46px "Noto Serif SC",serif'; Array.from('与自己的漫长对话').forEach((c, i) => ctx.fillText(c, 64, 115 + i * 70)) })
-  const spineGeometry = surfaceGeometry(14, 1, (u, v) => { const angle = Math.PI * (u * .9 + .05); return new THREE.Vector3(-.325 - Math.sin(angle) * .063, (.5 - v) * 1.08, Math.cos(angle) * .097) })
+  const spineGeometry = surfaceGeometry(14, 1, (u, v) => { const angle = Math.PI * (u * .9 + .05); return new THREE.Vector3(-.325 - Math.sin(angle) * .063, (.5 - v) * 1.08, -Math.cos(angle) * .097) })
   const spineUV = spineGeometry.getAttribute('uv'); for (let i = 0; i < spineUV.count; i++) spineUV.setY(i, 1 - spineUV.getY(i))
   const spineFace = new THREE.Mesh(spineGeometry, new THREE.MeshStandardMaterial({ map: spine.map, side: THREE.DoubleSide })); book.add(spineFace)
   batchStudy(scene, book)
