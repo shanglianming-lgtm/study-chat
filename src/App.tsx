@@ -5,13 +5,14 @@ import type { Journey } from './RoomScene'
 import BookFrontMatter, { initialMetadata, PaperField, type BookMetadata } from './BookFrontMatter'
 import { BOOK_TITLE, conversationSections, mockReply, sections, type Message, type ProcessRecord } from './content'
 import { isHttpUrl, pageForPosition, pageForSection, paginate, processRecordHtml, safeMarkdown, shouldSend, stoppedManuscript, turnPage, type BookPage, type ReadingPosition } from './book'
+import { LEAF_PERSPECTIVE, LEAF_SEGMENTS, leafOutline } from './leafGeometry'
 import './physicalBook.css'
 
 function snapshot(node: HTMLElement) {
   const clone = node.cloneNode(true) as HTMLElement
   const style = getComputedStyle(node)
-  clone.style.width = `${node.offsetWidth}px`
-  clone.style.height = `${node.offsetHeight}px`
+  clone.style.width = style.width
+  clone.style.height = style.height
   clone.style.paddingLeft = style.paddingLeft
   clone.style.paddingRight = style.paddingRight
   clone.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'))
@@ -51,7 +52,7 @@ export default function App() {
   const notesScrollTop = useRef(0)
   const shelfRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const turnSnapshot = useRef<{ direction: number; front: HTMLElement } | null>(null)
+  const turnSnapshot = useRef<{ direction: number; front: HTMLElement; under?: HTMLElement } | null>(null)
   const turnAnimation = useRef<Animation | null>(null)
   const turnCurves = useRef<Animation[]>([])
   const hasPickedUp = useRef(false)
@@ -153,7 +154,10 @@ export default function App() {
     if (next === pageIndex) return
     const leaves = spreadRef.current?.querySelectorAll<HTMLElement>(':scope > .paper')
     const front = direction > 0 ? leaves?.[leaves.length - 1] : leaves?.[0]
-    if (front && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) turnSnapshot.current = { direction, front: snapshot(front) }
+    if (front && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const under = !single ? (direction > 0 ? leaves?.[0] : leaves?.[leaves.length - 1]) : undefined
+      turnSnapshot.current = { direction, front: snapshot(front), under: under ? snapshot(under) : undefined }
+    }
     const page = pages[next]?.kind === 'blank' ? pages[next + 1] : pages[next]
     currentAnchor.current = { sectionId: page?.sectionId || 'cover', offset: page?.offset || 0 }
     setPageIndex(next)
@@ -195,30 +199,42 @@ export default function App() {
     const leaf = document.createElement('div')
     leaf.className = `turning-leaf ${pending.direction > 0 ? 'forward' : 'backward'} ${single ? 'single-leaf' : ''}`
     leaf.setAttribute('aria-hidden', 'true'); leaf.setAttribute('inert', '')
-    // Four joined strips bend through the turn; each has readable front/back
-    // paper. Their hinges stay connected rather than fading the whole spread.
+    // Face bleed closes raster cracks; a shared nominal outline below trims it
+    // to one sheet and casts a shaped shadow, never an unbent rectangular one.
+    leaf.style.setProperty('--leaf-segments', String(LEAF_SEGMENTS))
     const backSnapshot = snapshot(back)
+    const strips: HTMLElement[] = []
     let parent: HTMLElement = leaf
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < LEAF_SEGMENTS; i++) {
       const strip = document.createElement('div')
       strip.className = `page-strip ${i === 0 ? 'strip-root' : ''}`
+      strips.push(strip)
       for (const [side, paper] of [['front', pending.front], ['back', backSnapshot]] as const) {
         const face = document.createElement('div')
         face.className = `leaf-face leaf-${side}`
         const content = paper.cloneNode(true) as HTMLElement
-        const frontIndex = pending.direction > 0 ? i : 3 - i
-        const column = side === 'front' ? frontIndex : 3 - frontIndex
+        const frontIndex = pending.direction > 0 ? i : LEAF_SEGMENTS - 1 - i
+        const column = side === 'front' ? frontIndex : LEAF_SEGMENTS - 1 - frontIndex
         content.style.position = 'absolute'
-        content.style.left = `${-column * parseFloat(paper.style.width) / 4}px`
+        // Compensate the symmetric face bleed without shifting the printed ink.
+        content.style.left = `calc(var(--leaf-bleed) - ${column * parseFloat(paper.style.width) / LEAF_SEGMENTS}px)`
         face.append(content); strip.append(face)
       }
       parent.append(strip); parent = strip
       if (i) {
-        const bend = (pending.direction > 0 ? 1 : -1) * (12 + i * 3)
+        const bend = (pending.direction > 0 ? 1 : -1) * 54 * (1 + i / (LEAF_SEGMENTS - 1)) / (LEAF_SEGMENTS * 1.5 - 1)
         turnCurves.current.push(strip.animate([{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${bend}deg)`, offset: .48 }, { transform: 'rotateY(0deg)' }], { duration: 760, easing: 'cubic-bezier(.32,.08,.24,1)', fill: 'forwards' }))
       }
     }
-    leafHost.current.append(leaf)
+    const projection = document.createElement('div')
+    projection.className = 'leaf-projection'
+    projection.style.perspective = `${LEAF_PERSPECTIVE}px`
+    projection.append(leaf)
+    const silhouette = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    silhouette.classList.add('leaf-silhouette')
+    const outline = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    silhouette.append(outline)
+    leafHost.current.append(silhouette, projection)
     setTurning(true)
     const angle = pending.direction > 0 ? -180 : 180
     const animation = leaf.animate([
@@ -227,7 +243,34 @@ export default function App() {
       { transform: `rotateY(${angle}deg) translateZ(1px)` },
     ], { duration: 760, easing: 'cubic-bezier(.32,.08,.24,1)', fill: 'forwards' })
     turnAnimation.current = animation
-    animation.onfinish = () => { leaf.remove(); turnAnimation.current = null; turnCurves.current = []; setTurning(false) }
+    const width = parseFloat(pending.front.style.width), height = parseFloat(pending.front.style.height)
+    const hostWidth = parseFloat(getComputedStyle(projection).width)
+    const segmentWidth = parseFloat(getComputedStyle(strips[0]).width)
+    // The opposite old page stays put until the moving reverse face lands.
+    // Rendering both incoming pages immediately would duplicate the new text.
+    const under = pending.under
+    if (under) {
+      under.classList.add('leaf-underlay')
+      Object.assign(under.style, { position: 'absolute', top: '0', left: pending.direction > 0 ? '0' : `${hostWidth - width}px`, zIndex: '0' })
+      leafHost.current.append(under)
+    }
+    const transform = (element: HTMLElement) => {
+      const value = getComputedStyle(element).transform
+      return new DOMMatrix(value === 'none' ? undefined : value).toFloat64Array()
+    }
+    let lastTime: CSSNumberish | null = null
+    const followOutline = () => {
+      if (!leaf.isConnected) return
+      if (animation.currentTime !== lastTime) {
+        lastTime = animation.currentTime
+        const points = leafOutline(width, height, hostWidth, pending.direction > 0, transform(leaf), strips.map(transform), segmentWidth)
+        projection.style.clipPath = `polygon(${points.map(p => `${p.x}px ${p.y}px`).join(',')})`
+        outline.setAttribute('d', `${points.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join('')}Z`)
+      }
+      requestAnimationFrame(followOutline)
+    }
+    followOutline()
+    animation.onfinish = () => { projection.remove(); silhouette.remove(); under?.remove(); turnAnimation.current = null; turnCurves.current = []; setTurning(false) }
   }, [pageIndex, mode, single, metrics.width, metrics.height, fontReady])
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
