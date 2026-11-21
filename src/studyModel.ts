@@ -30,7 +30,12 @@ export function buildStudy(software = false) {
   const mesh = (geometry: THREE.BufferGeometry, color: string, p: Point, parent: THREE.Object3D = scene) => {
     const m = new THREE.Mesh(geometry, mat(color)); m.position.set(...p); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m
   }
-  const box = (s: Point, p: Point, c: string, parent: THREE.Object3D = scene, round = 0) => mesh(round ? new RoundedBoxGeometry(...s, 2, round) : new THREE.BoxGeometry(...s), c, p, parent)
+  const box = (s: Point, p: Point, c: string, parent: THREE.Object3D = scene, round = 0) => {
+    // Millimetre book bands/board edges are subpixel at the walking distance;
+    // do not spend hundreds of triangles rounding each one on CPU backends.
+    if (software && round < .009) round = 0
+    return mesh(round ? new RoundedBoxGeometry(...s, software ? 1 : 2, round) : new THREE.BoxGeometry(...s), c, p, parent)
+  }
   // Static corner occlusion is baked into room vertices, not a fullscreen pass.
   const roomOcclusion = (m: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>) => {
     m.updateMatrixWorld(true)
@@ -83,7 +88,7 @@ export function buildStudy(software = false) {
   }).map
   for (const map of [oak, weave, plaster]) { map.wrapS = map.wrapT = THREE.RepeatWrapping }
   const wood = '#ba8e5c', darkWood = '#977147', linen = '#dfcdb0'
-  scene.add(new THREE.HemisphereLight('#edf2f3', '#d0c8b9', software ? .56 : .38))
+  scene.add(new THREE.HemisphereLight('#edf2f3', '#d0c8b9', software ? .72 : .38))
   // Avoid LTC integration on CPU renderers; sun, lamps and baked grounding stay.
   if (!software) {
     RectAreaLightUniformsLib.init()
@@ -280,7 +285,7 @@ export function buildStudy(software = false) {
   materials.set('lamp-shade', shade.material)
   for (const [r, y] of [[.39, 1.81], [.263, 2.285]]) { const hem = mesh(new THREE.TorusGeometry(r, .008, 5, 48), '#d3ba8e', [-3.3, y, -1.85]); hem.rotation.x = Math.PI / 2 }
   tube([[-3.3, .045, -1.85], [-3.54, .025, -1.92], [-3.78, .025, -2.15], [-3.86, .12, -2.2]], .007, '#514c40')
-  const glow = new THREE.PointLight('#ffe5b2', 2.4, 0, 2); glow.position.set(-3.3, 1.94, -1.85); scene.add(glow)
+  const glow = new THREE.PointLight('#ffe5b2', software ? 4 : 2.4, 0, 2); glow.position.set(-3.3, 1.94, -1.85); scene.add(glow)
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(.065, 12, 8), new THREE.MeshBasicMaterial({ color: '#ffedba' })); bulb.position.copy(glow.position); scene.add(bulb)
   box([.055, 1.15, 1.32], [-3.87, 2.15, -.05], '#b58e55', scene, .012); box([.04, 1.02, 1.19], [-3.835, 2.15, -.05], '#f0e6cd')
   const botanical = texture(256, 320, ctx => {
@@ -294,7 +299,8 @@ export function buildStudy(software = false) {
   const print = new THREE.Mesh(new THREE.PlaneGeometry(.78, .85), new THREE.MeshStandardMaterial({ map: botanical.map, roughness: .95 })); print.position.set(-3.81, 2.15, -.05); print.rotation.y = Math.PI / 2; scene.add(print)
   // Woven rugs and desk under the large window.
   const rug = (s: Point, p: Point, color: string, bodies: number[][], feet: number[][]) => {
-    const m = mesh(new THREE.BoxGeometry(...s, 48, 1, 48), color, p), positions = m.geometry.getAttribute('position'), colors = []
+    const detail = software ? 24 : 48
+    const m = mesh(new THREE.BoxGeometry(...s, detail, 1, detail), color, p), positions = m.geometry.getAttribute('position'), colors = []
     for (let i = 0; i < positions.count; i++) {
       const x = positions.getX(i) + p[0], z = positions.getZ(i) + p[2]
       let value = 1

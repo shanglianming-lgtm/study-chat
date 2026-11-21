@@ -22,12 +22,22 @@ export default function RoomScene(props: Props) {
       event?.preventDefault(); unavailable.current = true; document.exitPointerLock?.(); latest.current.onUnavailable()
       if (latest.current.journey) { if (latest.current.journey.direction === 'out') latest.current.onReveal(); latest.current.onFinish() }
     }
-    let renderer: THREE.WebGLRenderer
+    let renderer: THREE.WebGLRenderer, software = false
     // Reading repaints HTML over a cached room, often without another GL frame.
     // Retain its color buffer for software/composited WebView repaint paths.
-    try { renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'low-power' }) } catch { fallback(); return }
-    const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info')
-    const software = !!debug && /swiftshader|llvmpipe|softpipe|software|basic render driver|warp/i.test(String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)))
+    try {
+      const options = { preserveDrawingBuffer: true, powerPreference: 'low-power' as const }
+      renderer = new THREE.WebGLRenderer({ ...options, antialias: true })
+      const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info')
+      const forceFull = import.meta.env.DEV && new URLSearchParams(location.search).get('renderMode') === 'full'
+      software = !forceFull && !!debug && /swiftshader|llvmpipe|softpipe|software|basic render driver|warp/i.test(String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)))
+      if (software) {
+        // Context attributes cannot change later. Retire this unmounted probe
+        // and avoid 4x MSAA/resolve work on CPU renderers; HTML stays native.
+        renderer.dispose(); renderer.forceContextLoss()
+        renderer = new THREE.WebGLRenderer({ ...options, antialias: false })
+      }
+    } catch { fallback(); return }
     const { scene, book, lid, ready, repaint, dispose } = buildStudy(software)
     const canvas = renderer.domElement; canvas.dataset.renderMode = software ? 'software' : 'full'; canvas.tabIndex = 0; canvas.setAttribute('aria-label', '第一人称书房：WASD 行走，鼠标转头，E 交互，Esc 暂停')
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap

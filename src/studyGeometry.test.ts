@@ -19,6 +19,10 @@ describe('locally modeled study geometry', () => {
     const batches = scene.children.filter(o => o instanceof THREE.Mesh) as THREE.Mesh[]
     expect(batches).toHaveLength(1)
     expect(batches[0].castShadow && batches[0].receiveShadow).toBe(true)
+    // Both cubes retain 24 face vertices (normal/UV seams), not 36 isolated
+    // triangle corners. Face count is unchanged and the index enables reuse.
+    expect(batches[0].geometry.getAttribute('position').count).toBe(48)
+    expect(batches[0].geometry.index?.count).toBe(72)
   })
 
   it('keeps the hinged moving book and instanced floor independent of static batches', () => {

@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 
 /** Gridded upholstery, not a beveled cuboid: convex faces meet soft corners. */
 export function cushionGeometry(w: number, h: number, d: number, puff = .025) {
@@ -77,7 +77,10 @@ export function batchStudy(scene: THREE.Scene, movingBook: THREE.Object3D, asset
   for (const group of groups.values()) {
     const geometry = mergeGeometries(group.geometries, false)
     if (!geometry) throw new Error('Study geometry attributes do not match')
-    const m = new THREE.Mesh(geometry, group.material)
+    // Restore vertex reuse after transform baking. Keep normal/UV/color seams;
+    // non-indexed batches otherwise transform every shared triangle corner.
+    const indexed = mergeVertices(geometry, 1e-6); geometry.dispose()
+    const m = new THREE.Mesh(indexed, group.material)
     m.name = `Static study / ${group.material.name || group.material.type}`
     m.castShadow = group.cast; m.receiveShadow = group.receive; batches.push(m)
     group.geometries.forEach(g => g.dispose())
