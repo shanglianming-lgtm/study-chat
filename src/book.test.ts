@@ -261,4 +261,13 @@ describe('DOM pagination', () => {
     expect(mockReply('问题', '模型', '强度')).toBe(mockReply('问题', '模型', '强度'))
     expect(mockReply('问题', '模型', '强度')).toContain('并未调用真实模型')
   })
+  it('quotes complete question Markdown without cutting a link at the old excerpt limit', () => {
+    const destination = 'https://example.com/读书?q=你好，世界'
+    const question = `${'先慢慢读这一页。'.repeat(16)}\n[阅读来源](${destination})`
+    const result = document.createElement('div')
+    result.innerHTML = safeMarkdown(mockReply(question, '模型', '强度'))
+    expect(decodeURI(result.querySelector('blockquote a')!.getAttribute('href')!)).toBe(destination)
+    expect(result.querySelector('blockquote')!.textContent).toContain('阅读来源')
+    expect(result.textContent).not.toContain('[阅读来源](')
+  })
 })

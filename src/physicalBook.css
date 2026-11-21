@@ -23,6 +23,7 @@
 .prose.user{font-family:var(--serif);color:#514936}
 .prose h6{font:500 10px/1.7 var(--serif);color:#83704e;letter-spacing:1px;margin:20px 0 13px;text-transform:none}
 .prose.user p{text-indent:0}
+.prose p:has(a){text-align:start}
 .prose .process-record{border-top:1px solid #b4a17b66;margin-top:18px;padding-top:10px;font-size:.88em;line-height:1.85}
 .prose .process-record summary{cursor:pointer;color:#85714e;font-size:10px;line-height:2;list-style-position:inside;letter-spacing:.3px}
 .prose .process-record[open] summary{margin-bottom:15px}

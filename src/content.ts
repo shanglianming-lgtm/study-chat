@@ -31,6 +31,7 @@ export function conversationSections(messages: Message[], expanded = new Set<str
 }
 
 export function mockReply(question: string, model: string, effort: string) {
-  const excerpt = question.slice(0, 96)
-  return `你写下：“${excerpt}”\n\n也许可以先不急着寻找一个完美的答案。把这个问题放在书桌上，我们一起看看：它最让你在意的，究竟是哪一部分？\n\n## 给这个念头一点空间\n\n- **先描述，再判断。** 写下一件实际发生的小事，区分事实与自己的解释。\n- **从一小步开始。** 选择今天就能尝试的一件事，而不是一次解决所有困惑。\n- **允许答案变化。** 此刻的想法只是这一页，不是整本书的结论。\n\n可以试试这样的记录方式：\n\n\x60\x60\x60typescript\nconst reflection = {\n  noticed: '今天值得留意的一件事',\n  question: '我真正想问的是什么？',\n  nextStep: '留出十分钟，写下一段话',\n};\n\nconsole.log(reflection.nextStep);\n\x60\x60\x60\n\n如果愿意，可以接着告诉我一个具体的片段。我们不必把所有事情都讲清楚，只需要从最真实的一句开始。\n\n> 慢一点，问题也会慢慢展开。\n\n这段回应由本地固定模板模拟生成（${model} · ${effort}），并未调用真实模型。你也可以主动打开这份[演示阅读链接](https://example.com)，它不会被自动访问。`
+  // Quote whole Markdown lines rather than cutting through a link/fence token.
+  const quotedQuestion = question.split(/\r?\n/).map(line => `> ${line}`).join('\n')
+  return `你写下：\n\n${quotedQuestion}\n\n也许可以先不急着寻找一个完美的答案。把这个问题放在书桌上，我们一起看看：它最让你在意的，究竟是哪一部分？\n\n## 给这个念头一点空间\n\n- **先描述，再判断。** 写下一件实际发生的小事，区分事实与自己的解释。\n- **从一小步开始。** 选择今天就能尝试的一件事，而不是一次解决所有困惑。\n- **允许答案变化。** 此刻的想法只是这一页，不是整本书的结论。\n\n可以试试这样的记录方式：\n\n\x60\x60\x60typescript\nconst reflection = {\n  noticed: '今天值得留意的一件事',\n  question: '我真正想问的是什么？',\n  nextStep: '留出十分钟，写下一段话',\n};\n\nconsole.log(reflection.nextStep);\n\x60\x60\x60\n\n如果愿意，可以接着告诉我一个具体的片段。我们不必把所有事情都讲清楚，只需要从最真实的一句开始。\n\n> 慢一点，问题也会慢慢展开。\n\n这段回应由本地固定模板模拟生成（${model} · ${effort}），并未调用真实模型。你也可以主动打开这份[演示阅读链接](https://example.com)，它不会被自动访问。`
 }
