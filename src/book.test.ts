@@ -72,6 +72,11 @@ describe('DOM pagination', () => {
     element.setAttribute('start', '5')
     result.innerHTML = sliceElement(element, 2, 4)
     expect(result.querySelector('ol')?.start).toBe(7)
+    element.setAttribute('start', '0')
+    result.innerHTML = sliceElement(element, 0, 1)
+    expect(result.querySelector('ol')?.start).toBe(0)
+    result.innerHTML = sliceElement(element, 1, 2)
+    expect(result.querySelector('ol')?.start).toBe(1)
   })
   it('measures the demo source card as part of its section and keeps the explicit link', () => {
     const probe = document.createElement('div')

@@ -81,7 +81,7 @@ export function sliceElement(element: Element, start: number, end: number): stri
   })
   for (const list of orderedLists) {
     const first = list.firstElementChild
-    if (first) list.setAttribute('start', String(listNumbers.get(first) || 1))
+    if (first) list.setAttribute('start', String(listNumbers.get(first) ?? 1))
   }
   if (start) clone.classList.add('continued')
   return clone.outerHTML
