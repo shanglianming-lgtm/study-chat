@@ -8,8 +8,8 @@
 .physical-reading .paper.recto{background-image:repeating-linear-gradient(94deg,#9c774904 0 1px,transparent 1px 4px),radial-gradient(ellipse at 60% 35%,#fffdf166,transparent 75%),linear-gradient(90deg,#d1c09b,#fcf4df 13%,#fcf4df 92%,#f3e6ca)}
 .physical-reading .paper.verso:after{width:22px;background:linear-gradient(90deg,transparent,#75614224)}
 .physical-reading .paper.recto:before{width:19px;background:linear-gradient(90deg,#75614220,transparent)}
-.physical-reading .paper-body{margin-top:22px;margin-bottom:0;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#c2af88 transparent;min-height:0;flex:1;container-type:size}
-.physical-reading .running-head{height:37px;font:8px/1.3 Georgia,serif;letter-spacing:.8px;border-color:#b9a98455;color:#8c7c5d;gap:10px}
+.physical-reading .paper-body{margin-top:22px;margin-bottom:0;overflow:hidden;min-height:0;flex:1;container-type:size}
+.physical-reading .running-head{height:37px;font:8px/1.3 Georgia,var(--serif);letter-spacing:.8px;border-color:#b9a98455;color:#8c7c5d;gap:10px}
 .physical-reading .running-head span:last-child{font-size:6px;flex-shrink:0}
 .physical-reading .page-footer{height:35px;color:#7b6a4b;font:11px Georgia,serif;justify-content:center;position:relative;flex-shrink:0}
 .physical-reading .page-footer i{display:none}
@@ -41,6 +41,7 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 .printer-flower{font:normal 31px Georgia,serif;color:#9a8154;display:block;margin:20px 0}
 .title-leaf{height:100%;display:flex;flex-direction:column;align-items:stretch;text-align:center}
 .title-leaf>.chapter-kicker{margin-top:8px;font-size:7px;letter-spacing:2px}
+.physical-reading .half-title>p,.physical-reading .title-leaf>p{text-align:center}
 .title-leaf h1{font:400 clamp(19px,8cqh,40px)/1.18 Georgia,serif;letter-spacing:0!important;margin:clamp(9px,4cqh,24px) 0 clamp(4px,1.5cqh,12px)!important}
 .title-leaf h1 em{font-weight:400;font-size:.82em}.title-leaf>p{font-size:10px;letter-spacing:2px;line-height:1.6;margin:6px 0}
 .title-author{margin:8px auto;width:100%;font:12px/1.7 Georgia,serif}
@@ -56,7 +57,6 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 .imprint-leaf dt{font:italic 9px/1.65 Georgia,serif;color:#8b7854}
 .imprint-leaf dd{margin:0;min-width:0}
 .imprint-leaf .imprint-note{font-size:8px;line-height:1.7;margin-top:12px;color:#8c7c60}
-.front-essay h1{font:400 27px/1.35 Georgia,serif!important;letter-spacing:0!important;margin:18px 0!important}
 .front-essay>.paper-field{margin-top:12px}
 .prose .colophon-note{font:italic 10px/1.9 var(--serif);color:#938162;margin-top:23px}
 .in-page-composer{margin-top:24px}
@@ -65,8 +65,25 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 .ink-actions button{font:inherit;font-size:10px;color:#5a6347;display:inline-flex;align-items:center;gap:6px;border-bottom:1px solid #9a9f8180;padding:4px 0}
 .ink-actions button:disabled{opacity:.35;cursor:default}
 .live-response{height:100%;display:flex;flex-direction:column;min-height:0}
-.physical-reading .live-paper .paper-body{display:flex;flex-direction:column;overflow:hidden}
-.live-paper .live-response{height:0;flex:1}
+/* Live replies and unfolded editorial records continue on new paper leaves. */
+.physical-reading .paper-stop{position:absolute;right:0;display:flex;align-items:center;gap:5px;font:10px/1.6 var(--serif);color:#78613c;padding:2px 5px;letter-spacing:0}
+.physical-reading .page-footer:has(.paper-stop){visibility:visible}
+.physical-reading .paper .toc-list.compact{overflow:visible;max-height:none;gap:0}
+.physical-reading .paper .toc-list.compact button{height:28px;min-height:28px;padding:3px 0;flex-shrink:0}
+.physical-reading .paper .toc-list.compact button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.physical-reading .writing-paper .paper-body{display:flex;flex-direction:column}
+.writing-leaf{height:0;flex:1;min-height:0;display:flex;flex-direction:column}
+.physical-reading .writing-leaf h1{font:400 clamp(20px,8cqh,30px)/1.35 Georgia,var(--serif);margin:8px 0!important;letter-spacing:1px!important}
+.writing-leaf>.in-page-composer{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:10px}
+.writing-leaf .in-page-composer h6{margin:0 0 10px;flex-shrink:0}
+.writing-leaf .paper-field{flex:1;min-height:40px;max-height:none;height:auto!important;scrollbar-width:none}
+.writing-leaf .ink-actions{flex-shrink:0;margin-top:8px}
+.writing-leaf .colophon-note{display:none}
+.front-essay{font-size:12px;line-height:1.8}
+.physical-reading .front-essay h1{font:400 clamp(20px,8cqh,27px)/1.35 Georgia,var(--serif);letter-spacing:0;margin:12px 0!important}
+.front-essay h6{margin:8px 0}
+.front-essay .paper-field{max-height:calc(100cqh - 112px);scrollbar-width:none}
+
 .live-response>h6{margin-top:0;flex-shrink:0}
 .live-ink{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#c2af88 transparent;overflow-wrap:anywhere}
 .live-response .ink-actions{margin-top:10px;flex-shrink:0}
@@ -80,18 +97,17 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 .left-stack{left:0;height:var(--left-stack,8px);border-radius:0 0 4px 7px;transform:skewX(-9deg);transform-origin:top right}
 .right-stack{right:0;height:var(--right-stack,14px);border-radius:0 0 8px 4px;transform:skewX(9deg);transform-origin:top left}
 .leaf-host{position:absolute;inset:0;pointer-events:none;z-index:15;perspective:1800px}
-.turning-leaf{position:absolute;width:50%;height:100%;top:0;transform-style:preserve-3d;will-change:transform}
+.turning-leaf{position:absolute;width:50%;height:100%;top:0;transform-style:preserve-3d;will-change:transform;box-shadow:0 4px 24px #2a201045}
 .turning-leaf.forward{left:50%;transform-origin:left center}.turning-leaf.backward{left:0;transform-origin:right center}
 .turning-leaf.single-leaf{width:100%;left:0}
-.leaf-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;box-shadow:0 4px 24px #2a201045;border-radius:2px 5px 5px 2px}
-.leaf-back{transform:rotateY(180deg) translateZ(.8px)}
+.leaf-face{position:absolute;inset:0 -.5px 0 0;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden}
+.leaf-back{transform:rotateY(180deg) translateZ(.8px);transform-origin:calc(50% - .25px) center}
 .page-strip{position:absolute;top:0;left:100%;width:100%;height:100%;transform-origin:left center;transform-style:preserve-3d}
 .page-strip.strip-root{left:0;width:25%}
 .backward .page-strip{left:auto;right:100%;transform-origin:right center}
 .backward .page-strip.strip-root{right:0}
 .leaf-face .paper{width:100%;height:100%;padding:0 13%;pointer-events:none}
 .single-leaf .leaf-face .paper{padding:0 9%}
-.leaf-front:after,.leaf-back:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#5f4a261c,transparent 18%,#fffdf31a 60%,#6e542b1a);pointer-events:none;border-right:1px solid #d4c19b}
 .page-corner{position:absolute;bottom:0;width:28px;height:30px;z-index:3;opacity:0;background:linear-gradient(135deg,transparent 48%,#c9b88e 50%,#fff9e9 60%);border-radius:0 0 5px}
 .next-corner{right:0}.previous-corner{left:0;transform:scaleX(-1)}
 .paper:hover .page-corner:not(:disabled),.page-corner:focus-visible{opacity:1}

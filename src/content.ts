@@ -1,7 +1,7 @@
 export const BOOK_TITLE = '与自己的漫长对话'
 export type PageKind = 'cover' | 'title' | 'imprint' | 'preface' | 'profile' | 'toc' | 'writing' | 'live'
 export type ProcessRecord = { model: string; effort: string }
-export type Section = { id: string; title: string; kind?: PageKind; matter?: 'front'; hideFolio?: boolean; process?: ProcessRecord; markdown: string; role?: 'user' | 'assistant'; recto?: boolean; source?: boolean }
+export type Section = { id: string; title: string; kind?: PageKind; matter?: 'front'; hideFolio?: boolean; process?: ProcessRecord; processExpanded?: boolean; live?: boolean; markdown: string; role?: 'user' | 'assistant'; recto?: boolean; source?: boolean }
 export type Message = { id: string; role: 'user' | 'assistant'; content: string; process?: ProcessRecord }
 export const SOURCE_CARD_HTML = '<aside class="source-card"><a class="source-icon" href="https://example.com" aria-label="打开演示来源">↗</a><div><strong>关于思考与书写的阅读笔记 <small>演示</small></strong><p>模拟来源 · 未访问或抓取任何网页</p></div></aside>'
 
@@ -16,14 +16,18 @@ export const sections: Section[] = [
   { id: 'chapter-two', recto: true, source: true, title: '第二章 · 让对话成为一本书', markdown: `# 让对话成为一本书\n\n聊天记录常常越积越长，直到我们忘了最初为什么打开它。一本书则提供另一种线索：章节、页码、空白，以及能再次找到的开头。\n\n## 从提问到书页\n\n在书的续写页写一个问题，按 Enter 发送。回答会先出现在当前书页上，此时它仍在生长，不参与分页。你可以随时停笔；已经写下的部分仍会装订进书里。\n\n1. 写下一个具体的问题。\n2. 看回应在当前书页上慢慢出现。\n3. 墨迹落定，自动装订为新的书页。\n4. 从目录再次找到这轮对话。\n\n每轮提问与回应以小标题区分，正文沿用纸页的书籍字体。它们不是彼此隔开的气泡，而是同一篇文章里的两种声音。\n\n## 也可以，先不成书\n\n切到“速记”，所有对话会成为连续滚动的时间线。草稿不会丢，对话也不会变；当你准备好，再回到书页。\n\n[阅读关于安静思考的示例链接](https://en.wikipedia.org/wiki/Reflection_(philosophy))。链接只在你主动点击时打开，粘贴网址不会触发访问。下方的来源卡只是排版演示，没有抓取网页。\n\n> 一本书并不急于抵达最后一页。\n> 它只是为每一次回来，保留了入口。` },
 ]
 
-export function conversationSections(messages: Message[]): Section[] {
-  return messages.map((message, index) => ({
+export function conversationSections(messages: Message[], expanded = new Set<string>()): Section[] {
+  return messages.flatMap((message, index) => [{
     id: message.id,
     title: `${message.role === 'user' ? '问' : '答'} · ${message.content.replace(/[#*\x60\n]/g, '').slice(0, 18)}${message.content.length > 18 ? '…' : ''}`,
     role: message.role,
     process: message.role === 'assistant' ? message.process : undefined,
+    processExpanded: expanded.has(message.id),
     markdown: `${message.role === 'user' ? `###### Conversation ${String(Math.floor(index / 2) + 1).padStart(2, '0')} · 提问` : '###### Response · 回应'}\n\n${message.content}`,
-  }))
+  }, ...(message.process && expanded.has(message.id) ? [{
+    id: `${message.id}-notes`, title: 'Notes & Sources · 过程附页', source: true,
+    markdown: `###### Notes & Sources · 过程记录（示例）\n\n### Reasoning summary\n\n先明确问题，再给出可尝试的小步骤。这是预写的摘要示例，不是模型的隐藏思维链。\n\n### Tool record\n\n\`reference.lookup\` — illustrative only; not executed. 参数：当前问题；示例结果：阅读笔记。没有执行工具或访问网页。\n\nModel: ${message.process.model} · ${message.process.effort}. Local template; no model request.`,
+  }] : [])])
 }
 
 export function mockReply(question: string, model: string, effort: string) {

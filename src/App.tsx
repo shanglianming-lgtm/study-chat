@@ -28,6 +28,7 @@ export default function App() {
   const [model, setModel] = useState('Study · Reflective')
   const [effort, setEffort] = useState('标准推理')
   const [metadata, setMetadata] = useState(initialMetadata)
+  const [expandedProcesses, setExpandedProcesses] = useState(new Set<string>())
   const [stream, setStream] = useState<string | null>(null)
   const [pages, setPages] = useState<BookPage[]>([])
   const [pageIndex, setPageIndex] = useState(0)
@@ -59,10 +60,10 @@ export default function App() {
   const pendingAnchor = useRef<string | null>(null)
   const currentAnchor = useRef<ReadingPosition>({ sectionId: 'cover', offset: 0 })
   const writing = stream !== null
-  const allSections = useMemo(() => [...sections, ...conversationSections(messages),
-    ...(writing ? [{ id: streamJob.current?.id || 'live', title: 'Response · 正在落笔', kind: 'live' as const, markdown: '' }] : []),
+  const allSections = useMemo(() => [...sections, ...conversationSections(messages, expandedProcesses),
+    ...(writing ? [{ id: streamJob.current?.id || 'live', title: 'Response · 正在落笔', live: true, role: 'assistant' as const, markdown: `###### Response · 回应\n\n${stream || ''}` }] : []),
     { id: 'writing', title: 'Continue the Conversation', kind: 'writing' as const, markdown: '' },
-  ], [messages, writing])
+  ], [messages, writing, stream, expandedProcesses])
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 859px)')
@@ -133,19 +134,21 @@ export default function App() {
     const nextPages = paginate(allSections, probe, metrics.height)
     setPages(nextPages)
     const position = pendingAnchor.current ? { sectionId: pendingAnchor.current, offset: 0 } : currentAnchor.current
-    const index = pageForPosition(nextPages, position)
+    const index = writing && manuscriptFollow.current ? (nextPages.map((page, i) => page.live ? i : -1).filter(i => i >= 0).at(-1) ?? 0) : pageForPosition(nextPages, position)
     setPageIndex(single ? index : Math.floor(index / 2) * 2)
     pendingAnchor.current = null
   }, [allSections, metrics, single, fontReady])
   const jump = useCallback((id: string) => {
     cancelTurn()
-    const target = pageForSection(pages, id)
+    manuscriptFollow.current = id === streamJob.current?.id
+    const target = manuscriptFollow.current ? (pages.map((page, i) => page.live ? i : -1).filter(i => i >= 0).at(-1) ?? 0) : pageForSection(pages, id)
     setPageIndex(single ? target : Math.floor(target / 2) * 2)
     currentAnchor.current = { sectionId: id, offset: 0 }
     setDirectory(false); setMode('book')
   }, [pages, single, cancelTurn])
   const flip = useCallback((direction: number) => {
     if (turnAnimation.current) return
+    manuscriptFollow.current = false
     const next = turnPage(pageIndex, direction, pages.length, single)
     if (next === pageIndex) return
     const leaves = spreadRef.current?.querySelectorAll<HTMLElement>(':scope > .paper')
@@ -263,6 +266,20 @@ export default function App() {
     streamJob.current = job
   }
   const handleLink = async (event: React.MouseEvent) => {
+    const disclosure = (event.target as HTMLElement).closest('details.process-record > summary')?.parentElement
+    const recordId = disclosure?.dataset.record
+    if (recordId) {
+      event.preventDefault()
+      manuscriptFollow.current = false
+      setExpandedProcesses(previous => {
+        const next = new Set(previous)
+        if (next.has(recordId)) next.delete(recordId)
+        else next.add(recordId)
+        return next
+      })
+      setNotice(expandedProcesses.has(recordId) ? '过程附页已收起' : '过程记录已展开为续页，请翻页阅读')
+      return
+    }
     const anchor = (event.target as HTMLElement).closest('a')
     if (!anchor) return
     event.preventDefault()
@@ -279,7 +296,7 @@ export default function App() {
   const tocItems = allSections.filter(section => section.id !== 'cover' && section.id !== 'contents')
   const totalPages = pages.length
   const visibleFolios = pages.slice(pageIndex, pageIndex + (single ? 1 : 2)).flatMap(page => page.folio ? [page.folio] : [])
-  const toc = () => <div className="toc-list compact">{tocItems.map(section => <button key={section.id} onClick={() => jump(section.id)}><span>{section.title}</span><i /><b>{pages[pageForSection(pages, section.id)]?.folio || '—'}</b></button>)}</div>
+  const toc = (page?: BookPage) => <div className="toc-list compact">{tocItems.slice(page?.tocStart ?? 0, page?.tocEnd).map(section => <button key={section.id} onClick={() => jump(section.id)}><span>{section.title}</span><i /><b>{pages[pageForSection(pages, section.id)]?.folio || '—'}</b></button>)}</div>
   const composer = () => <div className="in-page-composer">
     <h6>Conversation {String(Math.floor(messages.length / 2) + 1).padStart(2, '0')} · 提问</h6>
     <PaperField id="study-question" name="question" inputRef={textareaRef} value={draft} placeholder="此刻，你在想什么？把问题写在这一页。" aria-label="写下你的问题" onChange={event => setDraft(event.target.value)} onCompositionStart={() => { composition.current = true }} onCompositionEnd={() => { composition.current = false }} onKeyDown={event => { if (shouldSend({ key: event.key, shiftKey: event.shiftKey, isComposing: composition.current || event.nativeEvent.isComposing, keyCode: event.nativeEvent.keyCode })) { event.preventDefault(); send() } }} />
@@ -287,12 +304,12 @@ export default function App() {
     <p className="colophon-note">回应也写在书中。模型与提供商见版权页。</p>
   </div>
   const liveReply = () => <div className="live-response"><h6>Response · 回应</h6><div className="live-ink" ref={manuscriptRef} tabIndex={0} aria-label="书页中正在生成的回应" onScroll={event => { const node = event.currentTarget; manuscriptFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32 }}><div dangerouslySetInnerHTML={{ __html: safeMarkdown(stream || '', true) }} /><span className="ink-cursor" /></div><div className="ink-actions"><span className="ink-status">墨迹未干 · 本地模拟</span><button onClick={() => bind(true)}><Square size={11} />停笔并装订</button></div></div>
-  const renderPage = (page: BookPage | undefined, index: number) => <article key={index === pageIndex ? 'first' : 'second'} className={`paper ${index % 2 ? 'recto' : 'verso'} ${page?.kind === 'blank' ? 'blank-paper' : ''} ${page?.kind === 'live' ? 'live-paper' : ''} ${page?.kind ? 'special-leaf' : ''}`} aria-label={`${page?.folio || ''} ${page?.title || 'Flyleaf'}`}>
+  const renderPage = (page: BookPage | undefined, index: number) => <article key={index === pageIndex ? 'first' : 'second'} className={`paper ${index % 2 ? 'recto' : 'verso'} ${page?.kind === 'blank' ? 'blank-paper' : ''} ${page?.kind === 'writing' ? 'writing-paper' : ''} ${page?.kind ? 'special-leaf' : ''}`} aria-label={`${page?.folio || ''} ${page?.title || 'Flyleaf'}`}>
     <header className="running-head"><span>{index % 2 ? page?.title || '' : BOOK_TITLE}</span><span>STUDY LIBRARY</span></header>
     <div className={`paper-body prose ${page?.role || ''}`} ref={index === pageIndex ? bodyRef : undefined}>
-      {page?.kind === 'blank' ? null : page?.kind === 'toc' ? <><span className="chapter-kicker">CONTENTS</span><h1>Contents</h1>{toc()}</> : page?.kind === 'writing' ? <><span className="chapter-kicker">AN OPEN LEAF</span><h1>The next thought</h1><p>不必离开这本书。让下一句话，从纸页里开始。</p>{composer()}</> : page?.kind === 'live' ? liveReply() : page?.kind ? <BookFrontMatter kind={page.kind} metadata={metadata} change={changeMetadata} model={model} setModel={setModel} effort={effort} setEffort={setEffort} /> : page ? <div dangerouslySetInnerHTML={{ __html: page.html }} /> : null}
+      {page?.kind === 'blank' ? null : page?.kind === 'toc' ? <><span className="chapter-kicker">CONTENTS</span><h1>Contents{page.tocStart ? ' (cont.)' : ''}</h1>{toc(page)}</> : page?.kind === 'writing' ? <div className="writing-leaf"><span className="chapter-kicker">AN OPEN LEAF</span><h1>The next thought</h1>{composer()}</div> : page?.kind === 'live' ? liveReply() : page?.kind ? <BookFrontMatter kind={page.kind} metadata={metadata} change={changeMetadata} model={model} setModel={setModel} effort={effort} setEffort={setEffort} /> : page ? <div dangerouslySetInnerHTML={{ __html: page.html }} /> : null}
     </div>
-    <footer className="page-footer"><span>{page?.folio || ''}</span><i /></footer>
+    <footer className="page-footer"><span>{page?.folio || ''}</span>{writing && (single || index === pageIndex + 1) ? <button className="paper-stop" onClick={() => bind(true)}><Square size={10} />停笔并装订</button> : <i />}</footer>
     <button className={`page-corner ${index % 2 || single ? 'next-corner' : 'previous-corner'}`} aria-label={index % 2 || single ? '翻起右页' : '翻起左页'} onClick={() => flip(index % 2 || single ? 1 : -1)} disabled={turning || (index % 2 || single ? pageIndex + (single ? 1 : 2) >= pages.length : pageIndex === 0)} />
   </article>
   const thickness = { '--left-stack': `${Math.min(25, 3 + pageIndex * .55)}px`, '--right-stack': `${Math.min(25, 3 + Math.max(0, pages.length - pageIndex - (single ? 1 : 2)) * .55)}px` } as CSSProperties

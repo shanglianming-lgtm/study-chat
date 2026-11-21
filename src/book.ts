@@ -2,7 +2,7 @@ import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
 
-export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; offset?: number; number?: number; folio?: string }
+export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; live?: boolean; tocStart?: number; tocEnd?: number; offset?: number; number?: number; folio?: string }
 export type ReadingPosition = { sectionId: string; offset: number }
 
 export function romanFolio(value: number): string {
@@ -13,8 +13,9 @@ export function romanFolio(value: number): string {
   return result
 }
 
-export function processRecordHtml(record: ProcessRecord): string {
+export function processRecordHtml(record: ProcessRecord, sectionId?: string, expanded = false): string {
   const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  if (sectionId) return `<details class="process-record" data-record="${escape(sectionId)}"${expanded ? ' open' : ''}><summary>Notes &amp; sources · ${expanded ? '收起过程附页' : '展开过程附页'}（示例）</summary>${expanded ? '<p>Editorial notes continue on the following leaves. 翻页阅读过程记录。</p>' : ''}</details>`
   return `<details class="process-record"><summary>Notes &amp; sources · 过程记录（示例）</summary><h6>Reasoning summary · 推理摘要示例</h6><p>先明确问题，再给出可尝试的小步骤。这是预写的摘要示例，不是模型的隐藏思维链。</p><h6>Tool record · 工具调用示例</h6><p><code>reference.lookup</code> — illustrative only; not executed. 参数：当前问题；示例结果：阅读笔记。没有执行工具或访问网页。</p><p>Model: ${escape(record.model)} · ${escape(record.effort)}. Local template; no model request.</p>${SOURCE_CARD_HTML}</details>`
 }
 
@@ -33,6 +34,7 @@ export function safeMarkdown(markdown: string, streaming = false): string {
   })
   const template = document.createElement('template')
   template.innerHTML = html
+  template.content.querySelectorAll('pre').forEach(pre => { if (!pre.textContent?.trim()) pre.remove() })
   // Sanitizing an unsupported HTML container can leave bare text or inline
   // nodes at the root. Normalize those into blocks so pagination cannot skip it.
   let paragraph: HTMLParagraphElement | null = null
@@ -44,6 +46,23 @@ export function safeMarkdown(markdown: string, streaming = false): string {
     paragraph.append(node)
   }
   template.content.querySelectorAll('a').forEach(anchor => {
+    const href = anchor.getAttribute('href') || ''
+    // GFM auto-links can absorb Chinese closing quotes into a valid IDN host.
+    // Keep that punctuation as text, outside the auto-generated link.
+    const text = anchor.textContent || ''
+    const decoded = (value: string) => { try { return decodeURI(value) } catch { return value } }
+    if (decoded(text) === decoded(href)) {
+      const delimiter = text.search(/[“”‘’「」『』《》〈〉【】〔〕，！？；：、]/u)
+      const clean = (delimiter < 0 ? text : text.slice(0, delimiter)).replace(/[。]+$/u, '')
+      const suffix = text.slice(clean.length)
+      const encodedSuffix = encodeURI(suffix)
+      const removed = href.endsWith(suffix) ? suffix.length : href.toLowerCase().endsWith(encodedSuffix.toLowerCase()) ? encodedSuffix.length : 0
+      if (suffix && removed) {
+        anchor.setAttribute('href', href.slice(0, -removed))
+        anchor.textContent = clean
+        anchor.after(document.createTextNode(suffix))
+      }
+    }
     if (!isHttpUrl(anchor.getAttribute('href') || '')) anchor.removeAttribute('href')
   })
   return template.innerHTML
@@ -96,6 +115,7 @@ export function sliceElement(element: Element, start: number, end: number): stri
     const first = list.firstElementChild
     if (first) list.setAttribute('start', String(listNumbers.get(first) ?? 1))
   }
+  if (clone.matches('pre') && !clone.textContent?.trim()) return ''
   if (start) clone.classList.add('continued')
   return clone.outerHTML
 }
@@ -109,14 +129,20 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
   const fits = (html: string) => { probe.innerHTML = html; return probe.scrollHeight <= height + 1 }
   for (const section of sections) {
     probe.className = `prose pagination-probe ${section.role || ''}`
-    const page = (html: string): BookPage => ({ sectionId: section.id, title: section.title, role: section.role, kind: section.kind, html })
+    const page = (html: string): BookPage => ({ sectionId: section.id, title: section.title, role: section.role, live: section.live, kind: section.kind, html })
     // Even array indices are left/verso; covers and chapter openings are recto.
     if ((section.kind === 'cover' || section.recto) && pages.length % 2 === 0) {
       pages.push({ sectionId: `blank-before-${section.id}`, title: '', html: '', kind: 'blank' })
     }
+    if (section.kind === 'toc') {
+      const count = sections.filter(item => item.id !== 'cover' && item.id !== 'contents').length
+      const perLeaf = Math.max(1, Math.floor((height - 100) / 28))
+      for (let start = 0; start < count; start += perLeaf) pages.push({ ...page(''), tocStart: start, tocEnd: start + perLeaf })
+      continue
+    }
     if (section.kind) { pages.push(page('')); continue }
     const template = document.createElement('template')
-    template.innerHTML = safeMarkdown(section.markdown) + (section.source ? SOURCE_CARD_HTML : '') + (section.process ? processRecordHtml(section.process) : '')
+    template.innerHTML = safeMarkdown(section.markdown, section.live) + (section.source ? SOURCE_CARD_HTML : '') + (section.process ? processRecordHtml(section.process, section.id, section.processExpanded) : '')
     let current = ''
     const blocks = Array.from(template.content.children)
     for (const [blockIndex, block] of blocks.entries()) {
@@ -173,7 +199,7 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
       if (bodyNumber) bodyNumber++
       else if (frontNumber) frontNumber++
     } else if (section) page.folio = String(++bodyNumber)
-    page.offset = offsets.get(page.sectionId) || 0
+    page.offset = page.tocStart ?? offsets.get(page.sectionId) ?? 0
     const template = document.createElement('template')
     template.innerHTML = page.html
     offsets.set(page.sectionId, page.offset + fragmentLength(template.content))
