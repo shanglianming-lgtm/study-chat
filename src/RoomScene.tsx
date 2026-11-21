@@ -26,20 +26,21 @@ export default function RoomScene(props: Props) {
     // Reading repaints HTML over a cached room, often without another GL frame.
     // Retain its color buffer for software/composited WebView repaint paths.
     try { renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'low-power' }) } catch { fallback(); return }
-    const { scene, book, lid, repaint, dispose } = buildStudy()
+    const { scene, book, lid, ready, repaint, dispose } = buildStudy()
     const canvas = renderer.domElement; canvas.tabIndex = 0; canvas.setAttribute('aria-label', '第一人称书房：WASD 行走，鼠标转头，E 交互，Esc 暂停')
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
     // Room furniture/lights are static. Only moving the world book invalidates shadows.
     renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true
-    renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1; mount.append(canvas)
+    renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1; mount.append(canvas)
     const camera = new THREE.PerspectiveCamera(67, 1, .06, 45); camera.rotation.order = 'YXZ'; camera.position.set(.05, 1.65, 2.55)
     // First-person held objects use their own depth buffer, like a game's viewmodel.
     // Keep the real world book/depth for shelf pickup, desk opening and return.
     const heldScene = new THREE.Scene()
-    heldScene.add(new THREE.HemisphereLight('#fff4de', '#8d8066', 2.1))
-    const heldLight = new THREE.DirectionalLight('#ffe5b8', 2.5); heldLight.position.set(3, 6, -1); heldScene.add(heldLight)
+    heldScene.add(new THREE.HemisphereLight('#eef2eb', '#c7c1b7', 1.4))
+    const heldLight = new THREE.DirectionalLight('#fff9ee', 1.1); heldLight.position.set(3, 6, -1); heldScene.add(heldLight)
     renderer.autoClear = false
     let yaw = .1, pitch = -.05, entered = false, paused = false, carrying = false, reading = false, disposed = false, dirty = true
+    void ready.then(() => { if (!disposed) { dirty = true; renderer.shadowMap.needsUpdate = true } })
     let wantsCapture = true, recapture = false
     let renderScale = 1, lastRenderedAt = 0, frameAverage = 16.7, renderSamples = 0, renderedPreviousFrame = false
     const keys = new Set<string>(), reduced = window.matchMedia('(prefers-reduced-motion: reduce)')

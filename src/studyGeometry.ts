@@ -60,13 +60,13 @@ export function roundedLoop(w: number, h: number, r: number, plane: 'xy' | 'xz' 
 }
 
 /** Bake static transforms and group by material: details needn't add draw calls. */
-export function batchStudy(scene: THREE.Scene, movingBook: THREE.Object3D) {
+export function batchStudy(scene: THREE.Scene, movingBook: THREE.Object3D, assetSlots: THREE.Object3D[] = []) {
   scene.updateMatrixWorld(true)
   const groups = new Map<string, { material: THREE.Material; cast: boolean; receive: boolean; geometries: THREE.BufferGeometry[] }>()
   const originals = new Set<THREE.BufferGeometry>(), meshes: THREE.Mesh[] = []
   scene.traverse(o => {
     if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material)) return
-    for (let parent: THREE.Object3D | null = o; parent; parent = parent.parent) if (parent === movingBook) return
+    for (let parent: THREE.Object3D | null = o; parent; parent = parent.parent) if (parent === movingBook || assetSlots.includes(parent)) return
     const key = `${o.material.uuid}/${o.castShadow}/${o.receiveShadow}`
     if (!groups.has(key)) groups.set(key, { material: o.material, cast: o.castShadow, receive: o.receiveShadow, geometries: [] })
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()

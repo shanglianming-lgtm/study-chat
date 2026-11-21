@@ -45,4 +45,19 @@ describe('locally modeled study geometry', () => {
       expect(Array.from(g.getAttribute(name).array).every(Number.isFinite)).toBe(true)
     }
   })
+
+  it('leaves asynchronous asset slots replaceable instead of baking their fallback into the room', () => {
+    const scene = new THREE.Scene(), book = new THREE.Group(), slot = new THREE.Group()
+    const material = new THREE.MeshStandardMaterial()
+    const fallback = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 1), material)
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(8, 4, .1), material)
+    slot.position.x = -3; slot.add(fallback); scene.add(slot, wall, book)
+    batchStudy(scene, book, [slot])
+    expect(fallback.parent).toBe(slot)
+    slot.clear()
+    const remaining = new THREE.Box3().setFromObject(scene)
+    expect(remaining.min.x).toBeCloseTo(-4)
+    expect(remaining.max.z).toBeCloseTo(.05)
+    expect(scene.children.filter(o => o instanceof THREE.Mesh)).toHaveLength(1)
+  })
 })
