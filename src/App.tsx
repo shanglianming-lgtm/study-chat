@@ -175,6 +175,9 @@ export default function App() {
   }, [messages, mode, opened])
   useLayoutEffect(() => {
     workspaceRef.current?.scrollTo({ top: 0 })
+    // Reused left/right paper nodes must not carry a scrolled Preface into
+    // the next leaf (for example, past the profile's opening heading).
+    spreadRef.current?.querySelectorAll<HTMLElement>(':scope > .paper > .paper-body').forEach(body => { body.scrollTop = 0 })
     turnAnimation.current?.cancel()
     turnCurves.current.forEach(animation => animation.cancel())
     turnCurves.current = []
