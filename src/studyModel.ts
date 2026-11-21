@@ -36,9 +36,12 @@ export function buildStudy() {
     for (let i = 0; i < 65; i++) { ctx.strokeStyle = i % 3 ? '#a47c4b33' : '#e2c19955'; ctx.lineWidth = .5; ctx.beginPath(); ctx.moveTo(i * 2, 0); ctx.bezierCurveTo(i * 2 + 12, 160, i * 2 - 8, 340, i * 2 + 2, 512); ctx.stroke() }
   })
   const floorMat = new THREE.MeshStandardMaterial({ map: grain.map, roughness: .8 })
+  const floor = new THREE.InstancedMesh(new THREE.BoxGeometry(.328, .035, 2.31), floorMat, 72), floorMatrix = new THREE.Matrix4()
+  let plank = 0
   for (let x = 0; x < 24; x++) for (let z = 0; z < 3; z++) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(.328, .035, 2.31), floorMat); m.position.set(-3.83 + x * .334, 0, -2.34 + z * 2.34); m.receiveShadow = true; scene.add(m)
+    floor.setMatrixAt(plank++, floorMatrix.makeTranslation(-3.83 + x * .334, 0, -2.34 + z * 2.34))
   }
+  floor.receiveShadow = true; scene.add(floor)
   box([8.2, 3.6, .16], [0, 1.8, -3.5], '#e7d6be'); box([.16, 3.6, 7.2], [-4, 1.8, 0], '#e5d2b7')
   box([.16, 3.6, 7.2], [4, 1.8, 0], '#e9dac3'); box([8.2, 3.6, .16], [0, 1.8, 3.5], '#dfccb0')
   box([8, .12, .08], [0, .1, -3.38], '#bca17d'); box([.08, .12, 7], [-3.88, .1, 0], '#bca17d'); box([.08, .12, 7], [3.88, .1, 0], '#bca17d')
@@ -109,6 +112,6 @@ export function buildStudy() {
   const spine = texture(128, 768, ctx => { ctx.fillStyle = '#536447'; ctx.fillRect(0, 0, 128, 768); ctx.fillStyle = '#f1e6c8'; ctx.textAlign = 'center'; ctx.font = '46px "Noto Serif SC",serif'; Array.from('与自己的漫长对话').forEach((c, i) => ctx.fillText(c, 64, 115 + i * 70)) })
   const spineFace = new THREE.Mesh(new THREE.PlaneGeometry(.17, 1.08), new THREE.MeshStandardMaterial({ map: spine.map })); spineFace.position.set(-.389, 0, 0); spineFace.rotation.y = -Math.PI / 2; book.add(spineFace)
   return { scene, book, lid, repaint: () => { title.repaint(); spine.repaint() }, dispose: () => {
-    scene.traverse(o => { if (o instanceof THREE.Mesh) { o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()) } }); textures.forEach(t => t.dispose()); sun.shadow.map?.dispose()
+    scene.traverse(o => { if (o instanceof THREE.Mesh) { if (o instanceof THREE.InstancedMesh) o.dispose(); o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()) } }); textures.forEach(t => t.dispose()); sun.shadow.map?.dispose()
   } }
 }

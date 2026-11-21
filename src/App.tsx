@@ -90,6 +90,9 @@ export default function App() {
     if (journey || opened || !shelfRef.current) return
     hasPickedUp.current = true
     setNotice('')
+    // Move focus out before React makes the room inert/aria-hidden.
+    const focused = document.activeElement
+    if (focused instanceof HTMLElement && focused.closest('.room-layer')) focused.blur()
     setJourney({ direction: 'out' })
   }, [journey, opened])
 
