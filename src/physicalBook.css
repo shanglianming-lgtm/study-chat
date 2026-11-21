@@ -65,6 +65,8 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 .ink-actions button{font:inherit;font-size:10px;color:#5a6347;display:inline-flex;align-items:center;gap:6px;border-bottom:1px solid #9a9f8180;padding:4px 0}
 .ink-actions button:disabled{opacity:.35;cursor:default}
 .live-response{height:100%;display:flex;flex-direction:column;min-height:0}
+.physical-reading .live-paper .paper-body{display:flex;flex-direction:column;overflow:hidden}
+.live-paper .live-response{height:0;flex:1}
 .live-response>h6{margin-top:0;flex-shrink:0}
 .live-ink{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#c2af88 transparent;overflow-wrap:anywhere}
 .live-response .ink-actions{margin-top:10px;flex-shrink:0}
