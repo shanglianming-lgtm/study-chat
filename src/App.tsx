@@ -1,16 +1,22 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Check, ChevronDown, Feather, List, LoaderCircle, PanelLeftClose, PenLine, Square, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Check, Feather, List, PanelLeftClose, PenLine, Square, X } from 'lucide-react'
 import Room from './Room'
 import type { Journey } from './RoomScene'
-import { BOOK_TITLE, SOURCE_CARD_HTML, conversationSections, mockReply, sections, type Message } from './content'
-import { isHttpUrl, pageForPosition, pageForSection, paginate, safeMarkdown, shouldSend, stoppedManuscript, turnPage, type BookPage, type ReadingPosition } from './book'
+import BookFrontMatter, { initialMetadata, PaperField, type BookMetadata } from './BookFrontMatter'
+import { BOOK_TITLE, conversationSections, mockReply, sections, type Message, type ProcessRecord } from './content'
+import { isHttpUrl, pageForPosition, pageForSection, paginate, processRecordHtml, safeMarkdown, shouldSend, stoppedManuscript, turnPage, type BookPage, type ReadingPosition } from './book'
+import './physicalBook.css'
 
-function SourceCard() {
-  return <div dangerouslySetInnerHTML={{ __html: SOURCE_CARD_HTML }} />
-}
-
-function Cover() {
-  return <div className="book-cover"><span className="cover-edition">书 房 文 库 / 001</span><div className="cover-line" /><div className="cover-title">与自己的<br />漫长对话</div><p>A LONG CONVERSATION<br />WITH MYSELF</p><div className="cover-art"><i /><i /><i /><span>问</span></div><div className="cover-author">你，与书房一起著</div><div className="cover-bottom">每一个问题，都是新的一页。<span>书房 Chat</span></div></div>
+function snapshot(node: HTMLElement) {
+  const clone = node.cloneNode(true) as HTMLElement
+  const style = getComputedStyle(node)
+  clone.style.width = `${node.offsetWidth}px`
+  clone.style.height = `${node.offsetHeight}px`
+  clone.style.paddingLeft = style.paddingLeft
+  clone.style.paddingRight = style.paddingRight
+  clone.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'))
+  clone.querySelectorAll('input,textarea,select,button,a').forEach(element => element.setAttribute('tabindex', '-1'))
+  return clone
 }
 
 export default function App() {
@@ -19,8 +25,9 @@ export default function App() {
   const [mode, setMode] = useState<'book' | 'notes'>('book')
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
-  const [model, setModel] = useState('书房 · 沉思')
+  const [model, setModel] = useState('Study · Reflective')
   const [effort, setEffort] = useState('标准推理')
+  const [metadata, setMetadata] = useState(initialMetadata)
   const [stream, setStream] = useState<string | null>(null)
   const [pages, setPages] = useState<BookPage[]>([])
   const [pageIndex, setPageIndex] = useState(0)
@@ -29,27 +36,33 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [linkError, setLinkError] = useState('')
   const [metrics, setMetrics] = useState({ width: 340, height: 430 })
-  const [composerHeight, setComposerHeight] = useState(170)
+  const [turning, setTurning] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const manuscriptRef = useRef<HTMLDivElement>(null)
-  const composerRef = useRef<HTMLDivElement>(null)
+  const notesRef = useRef<HTMLDivElement>(null)
   const workspaceRef = useRef<HTMLElement>(null)
-  const notesRef = useRef<HTMLElement>(null)
+  const spreadRef = useRef<HTMLDivElement>(null)
+  const leafHost = useRef<HTMLDivElement>(null)
   const manuscriptFollow = useRef(true)
   const notesFollow = useRef(true)
   const notesScrollTop = useRef(0)
   const shelfRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const turnDirection = useRef(0)
+  const turnSnapshot = useRef<{ direction: number; front: HTMLElement } | null>(null)
   const turnAnimation = useRef<Animation | null>(null)
+  const turnCurves = useRef<Animation[]>([])
   const hasPickedUp = useRef(false)
   const composition = useRef(false)
-  const streamJob = useRef<{ full: string; text: string; id: string; timer: ReturnType<typeof setInterval> } | null>(null)
+  const streamJob = useRef<{ full: string; text: string; id: string; process: ProcessRecord; timer: ReturnType<typeof setInterval> } | null>(null)
   const pendingAnchor = useRef<string | null>(null)
   const currentAnchor = useRef<ReadingPosition>({ sectionId: 'cover', offset: 0 })
-  const allSections = useMemo(() => [...sections, ...conversationSections(messages)], [messages])
+  const writing = stream !== null
+  const allSections = useMemo(() => [...sections, ...conversationSections(messages),
+    ...(writing ? [{ id: streamJob.current?.id || 'live', title: 'Response · 正在落笔', kind: 'live' as const, markdown: '' }] : []),
+    { id: 'writing', title: 'Continue the Conversation', kind: 'writing' as const, markdown: '' },
+  ], [messages, writing])
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 859px)')
@@ -57,27 +70,12 @@ export default function App() {
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
   }, [])
-
   useLayoutEffect(() => {
     if (!opened || mode !== 'book' || !bodyRef.current) return
-    const observer = new ResizeObserver(([entry]) => {
-      setMetrics({ width: Math.floor(entry.contentRect.width), height: Math.floor(entry.contentRect.height) })
-    })
+    const observer = new ResizeObserver(([entry]) => setMetrics({ width: Math.floor(entry.contentRect.width), height: Math.floor(entry.contentRect.height) }))
     observer.observe(bodyRef.current)
     return () => observer.disconnect()
   }, [opened, mode, single])
-
-  useLayoutEffect(() => {
-    const composer = composerRef.current
-    if (!composer) return
-    const update = () => setComposerHeight(window.innerHeight - composer.getBoundingClientRect().top)
-    const observer = new ResizeObserver(update)
-    observer.observe(composer)
-    window.addEventListener('resize', update)
-    update()
-    return () => { observer.disconnect(); window.removeEventListener('resize', update) }
-  }, [opened])
-
   const [fontReady, setFontReady] = useState(0)
   useEffect(() => {
     const update = () => setFontReady(value => value + 1)
@@ -85,32 +83,35 @@ export default function App() {
     document.fonts.addEventListener('loadingdone', update)
     return () => document.fonts.removeEventListener('loadingdone', update)
   }, [])
-
+  const cancelTurn = useCallback(() => {
+    turnAnimation.current?.cancel()
+    turnCurves.current.forEach(animation => animation.cancel())
+    turnCurves.current = []
+    turnAnimation.current = null
+    leafHost.current?.replaceChildren()
+    turnSnapshot.current = null
+    setTurning(false)
+  }, [])
   const openBook = useCallback(() => {
     if (journey || opened || !shelfRef.current) return
     hasPickedUp.current = true
     setNotice('')
-    // Move focus out before React makes the room inert/aria-hidden.
     const focused = document.activeElement
     if (focused instanceof HTMLElement && focused.closest('.room-layer')) focused.blur()
     setJourney({ direction: 'out' })
   }, [journey, opened])
-
   const closeBook = useCallback(() => {
     if (journey || !opened) return
-    setDirectory(false)
-    setOpened(false)
-    setJourney({ direction: 'back' })
-  }, [journey, opened])
+    cancelTurn()
+    setDirectory(false); setOpened(false); setJourney({ direction: 'back' })
+  }, [journey, opened, cancelTurn])
   const revealReader = useCallback(() => setOpened(true), [])
   const finishJourney = useCallback(() => setJourney(null), [])
-
   useLayoutEffect(() => {
     if (journey || !hasPickedUp.current) return
     if (opened) closeRef.current?.focus({ preventScroll: true })
     else shelfRef.current?.focus({ preventScroll: true })
   }, [opened, journey])
-
   useEffect(() => {
     if (!directory) return
     const previous = document.activeElement as HTMLElement | null
@@ -125,118 +126,139 @@ export default function App() {
     document.addEventListener('keydown', trap)
     return () => { document.removeEventListener('keydown', trap); previous?.focus() }
   }, [directory])
-
   useLayoutEffect(() => {
     if (!probeRef.current || metrics.width < 20 || metrics.height < 100) return
-    probeRef.current.style.width = `${metrics.width}px`
-    const nextPages = paginate(allSections, probeRef.current, metrics.height)
+    const probe = probeRef.current
+    probe.style.width = `${metrics.width}px`
+    const nextPages = paginate(allSections, probe, metrics.height)
     setPages(nextPages)
     const position = pendingAnchor.current ? { sectionId: pendingAnchor.current, offset: 0 } : currentAnchor.current
     const index = pageForPosition(nextPages, position)
     setPageIndex(single ? index : Math.floor(index / 2) * 2)
     pendingAnchor.current = null
   }, [allSections, metrics, single, fontReady])
-
   const jump = useCallback((id: string) => {
+    cancelTurn()
     const target = pageForSection(pages, id)
     setPageIndex(single ? target : Math.floor(target / 2) * 2)
     currentAnchor.current = { sectionId: id, offset: 0 }
-    setDirectory(false)
-    setMode('book')
-  }, [pages, single])
-
+    setDirectory(false); setMode('book')
+  }, [pages, single, cancelTurn])
   const flip = useCallback((direction: number) => {
-    setPageIndex(index => {
-      const next = turnPage(index, direction, pages.length, single)
-      if (next !== index) turnDirection.current = direction
-      const page = pages[next]?.kind === 'blank' ? pages[next + 1] : pages[next]
-      currentAnchor.current = { sectionId: page?.sectionId || 'cover', offset: page?.offset || 0 }
-      return next
-    })
-  }, [pages, single])
-
+    if (turnAnimation.current) return
+    const next = turnPage(pageIndex, direction, pages.length, single)
+    if (next === pageIndex) return
+    const leaves = spreadRef.current?.querySelectorAll<HTMLElement>(':scope > .paper')
+    const front = direction > 0 ? leaves?.[leaves.length - 1] : leaves?.[0]
+    if (front && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) turnSnapshot.current = { direction, front: snapshot(front) }
+    const page = pages[next]?.kind === 'blank' ? pages[next + 1] : pages[next]
+    currentAnchor.current = { sectionId: page?.sectionId || 'cover', offset: page?.offset || 0 }
+    setPageIndex(next)
+  }, [pageIndex, pages, single])
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
       if (!opened || journey || directory || event.isComposing) return
       if (event.key === 'Escape') { event.preventDefault(); closeBook(); return }
-      if (mode !== 'book' || target.closest('input,textarea,select,[contenteditable="true"]')) return
+      if (mode !== 'book' || target.closest('input,textarea,select,summary,details,a,[contenteditable="true"]')) return
       if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') { event.preventDefault(); flip(event.key === 'ArrowRight' ? 1 : -1) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [opened, journey, mode, directory, flip, closeBook])
-
   useLayoutEffect(() => {
-    const textarea = textareaRef.current
-    if (textarea) { textarea.style.height = '0px'; textarea.style.height = `${Math.min(textarea.scrollHeight, 132)}px` }
-  }, [draft, opened])
-
+    if (manuscriptRef.current && manuscriptFollow.current) manuscriptRef.current.scrollTop = manuscriptRef.current.scrollHeight
+    if (notesRef.current && notesFollow.current && writing) notesRef.current.scrollTop = notesRef.current.scrollHeight
+  }, [stream, mode])
   useLayoutEffect(() => {
-    const manuscript = manuscriptRef.current
-    if (manuscript && manuscriptFollow.current) manuscript.scrollTop = manuscript.scrollHeight
-  }, [stream])
-
-  useLayoutEffect(() => {
-    const notes = notesRef.current
-    if (notes) notes.scrollTop = notesFollow.current ? notes.scrollHeight : notesScrollTop.current
+    if (notesRef.current) notesRef.current.scrollTop = notesFollow.current ? notesRef.current.scrollHeight : notesScrollTop.current
   }, [messages, mode, opened])
-
   useLayoutEffect(() => {
-    const workspace = workspaceRef.current
-    if (mode !== 'book' || !workspace) return
-    workspace.scrollTop = 0
-    const direction = turnDirection.current
-    turnDirection.current = 0
+    workspaceRef.current?.scrollTo({ top: 0 })
     turnAnimation.current?.cancel()
-    if (!direction || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const leaves = [...workspace.querySelectorAll<HTMLElement>('.paper:not(.blank-paper)')]
-    const leaf = direction > 0 ? leaves.at(-1) : leaves[0]
-    if (leaf) turnAnimation.current = leaf.animate([
-      { transform: `perspective(1200px) rotateY(${direction > 0 ? -32 : 32}deg)`, opacity: .35, transformOrigin: leaf.classList.contains('recto') ? 'left center' : 'right center' },
-      { transform: 'perspective(1200px) rotateY(0deg)', opacity: 1, transformOrigin: leaf.classList.contains('recto') ? 'left center' : 'right center' },
-    ], { duration: 360, easing: 'cubic-bezier(.2,.6,.2,1)' })
-  }, [pageIndex, mode])
-
+    turnCurves.current.forEach(animation => animation.cancel())
+    turnCurves.current = []
+    turnAnimation.current = null
+    leafHost.current?.replaceChildren()
+    const pending = turnSnapshot.current
+    turnSnapshot.current = null
+    if (!pending || mode !== 'book' || !leafHost.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setTurning(false); return }
+    const incoming = spreadRef.current?.querySelectorAll<HTMLElement>(':scope > .paper')
+    const back = pending.direction > 0 ? incoming?.[0] : incoming?.[incoming.length - 1]
+    if (!back) return
+    const leaf = document.createElement('div')
+    leaf.className = `turning-leaf ${pending.direction > 0 ? 'forward' : 'backward'} ${single ? 'single-leaf' : ''}`
+    leaf.setAttribute('aria-hidden', 'true'); leaf.setAttribute('inert', '')
+    // Four joined strips bend through the turn; each has readable front/back
+    // paper. Their hinges stay connected rather than fading the whole spread.
+    const backSnapshot = snapshot(back)
+    let parent: HTMLElement = leaf
+    for (let i = 0; i < 4; i++) {
+      const strip = document.createElement('div')
+      strip.className = `page-strip ${i === 0 ? 'strip-root' : ''}`
+      for (const [side, paper] of [['front', pending.front], ['back', backSnapshot]] as const) {
+        const face = document.createElement('div')
+        face.className = `leaf-face leaf-${side}`
+        const content = paper.cloneNode(true) as HTMLElement
+        const frontIndex = pending.direction > 0 ? i : 3 - i
+        const column = side === 'front' ? frontIndex : 3 - frontIndex
+        content.style.position = 'absolute'
+        content.style.left = `${-column * parseFloat(paper.style.width) / 4}px`
+        face.append(content); strip.append(face)
+      }
+      parent.append(strip); parent = strip
+      if (i) {
+        const bend = (pending.direction > 0 ? 1 : -1) * (12 + i * 3)
+        turnCurves.current.push(strip.animate([{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${bend}deg)`, offset: .48 }, { transform: 'rotateY(0deg)' }], { duration: 760, easing: 'cubic-bezier(.32,.08,.24,1)', fill: 'forwards' }))
+      }
+    }
+    leafHost.current.append(leaf)
+    setTurning(true)
+    const angle = pending.direction > 0 ? -180 : 180
+    const animation = leaf.animate([
+      { transform: 'rotateY(0deg) translateZ(1px)' },
+      { transform: `rotateY(${angle * .46}deg) translateZ(16px) rotateZ(${pending.direction > 0 ? -1.5 : 1.5}deg)`, offset: .48 },
+      { transform: `rotateY(${angle}deg) translateZ(1px)` },
+    ], { duration: 760, easing: 'cubic-bezier(.32,.08,.24,1)', fill: 'forwards' })
+    turnAnimation.current = animation
+    animation.onfinish = () => { leaf.remove(); turnAnimation.current = null; turnCurves.current = []; setTurning(false) }
+  }, [pageIndex, mode, single, metrics.width, metrics.height, fontReady])
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const update = () => { if (query.matches) turnAnimation.current?.cancel() }
+    const update = () => { if (query.matches) cancelTurn() }
     query.addEventListener('change', update)
-    return () => { query.removeEventListener('change', update); turnAnimation.current?.cancel() }
-  }, [])
-
+    return () => { query.removeEventListener('change', update); turnAnimation.current?.cancel(); turnCurves.current.forEach(animation => animation.cancel()) }
+  }, [cancelTurn])
   const bind = useCallback((stopped = false) => {
     const job = streamJob.current
     if (!job) return
-    clearInterval(job.timer)
-    streamJob.current = null
+    clearInterval(job.timer); streamJob.current = null
     const text = job.text || '（本轮已停笔，尚未写下回应。）'
     pendingAnchor.current = job.id
     currentAnchor.current = { sectionId: job.id, offset: 0 }
-    setMessages(items => [...items, { id: job.id, role: 'assistant', content: stopped ? stoppedManuscript(text) : text }])
+    setMessages(items => [...items, { id: job.id, role: 'assistant', content: stopped ? stoppedManuscript(text) : text, process: job.process }])
     setStream(null)
     setNotice(stopped ? '已停笔，现有文字已装订' : '墨迹已干，新的一轮已装订入书')
   }, [])
-
   useEffect(() => () => { if (streamJob.current) clearInterval(streamJob.current.timer) }, [])
-
   const send = () => {
     const question = draft.trim()
     if (!question || streamJob.current) return
+    cancelTurn()
     const id = crypto.randomUUID()
-    manuscriptFollow.current = true
-    notesFollow.current = true
+    manuscriptFollow.current = true; notesFollow.current = true
+    pendingAnchor.current = `a-${id}`
+    currentAnchor.current = { sectionId: `a-${id}`, offset: 0 }
     setMessages(items => [...items, { id: `q-${id}`, role: 'user', content: question }])
     setDraft(''); setStream(''); setNotice('')
     const full = mockReply(question, model, effort)
-    const job = { full, text: '', id: `a-${id}`, timer: setInterval(() => {
+    const job = { full, text: '', id: `a-${id}`, process: { model, effort }, timer: setInterval(() => {
       job.text = job.full.slice(0, job.text.length + 9)
       setStream(job.text)
       if (job.text.length === job.full.length) bind()
     }, 44) }
     streamJob.current = job
   }
-
   const handleLink = async (event: React.MouseEvent) => {
     const anchor = (event.target as HTMLElement).closest('a')
     if (!anchor) return
@@ -250,32 +272,47 @@ export default function App() {
       } else window.open(url, '_blank', 'noopener,noreferrer')
     } catch { setLinkError('未能打开链接，请检查系统默认浏览器。') }
   }
-
+  const changeMetadata = (key: keyof BookMetadata, value: string) => setMetadata(previous => ({ ...previous, [key]: value }))
   const tocItems = allSections.filter(section => section.id !== 'cover' && section.id !== 'contents')
-  const totalPages = pages.at(-1)?.number || 0
-  const visibleNumbers = pages.slice(pageIndex, pageIndex + (single ? 1 : 2)).flatMap(page => page.number ? [page.number] : [])
-  const pageLabel = visibleNumbers.length ? `第 ${visibleNumbers.join('—')} 页` : '封面'
-  const toc = (compact = false) => <div className={compact ? 'toc-list compact' : 'toc-list'}>{tocItems.map(section => <button key={section.id} onClick={() => jump(section.id)}><span>{section.title}</span><i /><b>{pages[pageForSection(pages, section.id)]?.number || '—'}</b></button>)}</div>
-  const renderPage = (page: BookPage | undefined, index: number) => <article key={index === pageIndex ? 'first' : 'second'} className={`paper ${index % 2 ? 'recto' : 'verso'} ${page?.kind === 'cover' ? 'cover-paper' : ''} ${page?.kind === 'blank' ? 'blank-paper' : ''}`} aria-label={page?.number ? `第 ${page.number} 页：${page.title || '留白'}` : page?.title || '留白'}>
-    <header className="running-head"><span>{index % 2 ? page?.title || '留白' : BOOK_TITLE}</span><span>书房文库</span></header>
+  const totalPages = pages.length
+  const visibleFolios = pages.slice(pageIndex, pageIndex + (single ? 1 : 2)).flatMap(page => page.folio ? [page.folio] : [])
+  const toc = () => <div className="toc-list compact">{tocItems.map(section => <button key={section.id} onClick={() => jump(section.id)}><span>{section.title}</span><i /><b>{pages[pageForSection(pages, section.id)]?.folio || '—'}</b></button>)}</div>
+  const composer = () => <div className="in-page-composer">
+    <h6>Conversation {String(Math.floor(messages.length / 2) + 1).padStart(2, '0')} · 提问</h6>
+    <PaperField id="study-question" name="question" inputRef={textareaRef} value={draft} placeholder="此刻，你在想什么？把问题写在这一页。" aria-label="写下你的问题" onChange={event => setDraft(event.target.value)} onCompositionStart={() => { composition.current = true }} onCompositionEnd={() => { composition.current = false }} onKeyDown={event => { if (shouldSend({ key: event.key, shiftKey: event.shiftKey, isComposing: composition.current || event.nativeEvent.isComposing, keyCode: event.nativeEvent.keyCode })) { event.preventDefault(); send() } }} />
+    <div className="ink-actions"><button onClick={send} disabled={!draft.trim() || writing} aria-label="发送问题"><Feather size={13} /> 落笔 <ArrowUp size={12} /></button><span>Enter 落笔 · Shift + Enter 换行</span></div>
+    <p className="colophon-note">回应也写在书中。模型与提供商见版权页。</p>
+  </div>
+  const liveReply = () => <div className="live-response"><h6>Response · 回应</h6><div className="live-ink" ref={manuscriptRef} tabIndex={0} aria-label="书页中正在生成的回应" onScroll={event => { const node = event.currentTarget; manuscriptFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32 }}><div dangerouslySetInnerHTML={{ __html: safeMarkdown(stream || '', true) }} /><span className="ink-cursor" /></div><div className="ink-actions"><span className="ink-status">墨迹未干 · 本地模拟</span><button onClick={() => bind(true)}><Square size={11} />停笔并装订</button></div></div>
+  const renderPage = (page: BookPage | undefined, index: number) => <article key={index === pageIndex ? 'first' : 'second'} className={`paper ${index % 2 ? 'recto' : 'verso'} ${page?.kind === 'blank' ? 'blank-paper' : ''} ${page?.kind ? 'special-leaf' : ''}`} aria-label={`${page?.folio || ''} ${page?.title || 'Flyleaf'}`}>
+    <header className="running-head"><span>{index % 2 ? page?.title || '' : BOOK_TITLE}</span><span>STUDY LIBRARY</span></header>
     <div className={`paper-body prose ${page?.role || ''}`} ref={index === pageIndex ? bodyRef : undefined}>
-      {page?.kind === 'cover' ? <Cover /> : page?.kind === 'toc' ? <><span className="chapter-kicker">CONTENTS</span><h1>目 录</h1><p className="toc-preface">沿着问题，找到回来的路。</p>{toc(true)}</> : page ? <div dangerouslySetInnerHTML={{ __html: page.html }} /> : <div className="blank-page">下一页，留给新的想法。</div>}
+      {page?.kind === 'blank' ? null : page?.kind === 'toc' ? <><span className="chapter-kicker">CONTENTS</span><h1>Contents</h1>{toc()}</> : page?.kind === 'writing' ? <><span className="chapter-kicker">AN OPEN LEAF</span><h1>The next thought</h1><p>不必离开这本书。让下一句话，从纸页里开始。</p>{composer()}</> : page?.kind === 'live' ? liveReply() : page?.kind ? <BookFrontMatter kind={page.kind} metadata={metadata} change={changeMetadata} model={model} setModel={setModel} effort={effort} setEffort={setEffort} /> : page ? <div dangerouslySetInnerHTML={{ __html: page.html }} /> : null}
     </div>
-    <footer className="page-footer">{page?.number && <><span>{String(page.number).padStart(2, '0')}</span><i /></>}</footer>
+    <footer className="page-footer"><span>{page?.folio || ''}</span><i /></footer>
+    <button className={`page-corner ${index % 2 || single ? 'next-corner' : 'previous-corner'}`} aria-label={index % 2 || single ? '翻起右页' : '翻起左页'} onClick={() => flip(index % 2 || single ? 1 : -1)} disabled={turning || (index % 2 || single ? pageIndex + (single ? 1 : 2) >= pages.length : pageIndex === 0)} />
   </article>
+  const thickness = { '--left-stack': `${Math.min(25, 3 + pageIndex * .55)}px`, '--right-stack': `${Math.min(25, 3 + Math.max(0, pages.length - pageIndex - (single ? 1 : 2)) * .55)}px` } as CSSProperties
 
-  return <div className={`app ${opened ? 'reading' : 'in-room'} ${journey ? 'in-transit' : ''}`}  onClick={handleLink}>
-    <header className="app-header"><a className="brand" href="#" onClick={event => { event.preventDefault(); closeBook() }} aria-label="回到书房"><span className="brand-symbol"><BookOpen size={22} strokeWidth={1.4} /></span><strong>书房<span>Chat</span></strong><i /><small>把思绪写成书</small></a><div className="header-right"><span className="simulation"><i /> 本地模拟 · 无需联网</span><span className="version">PROTOTYPE 01</span></div></header>
+  return <div className={`app ${opened ? 'reading physical-reading' : 'in-room'} ${journey ? 'in-transit' : ''}`} onClick={handleLink}>
+    <header className="app-header"><a className="brand" href="#" onClick={event => { event.preventDefault(); closeBook() }} aria-label="回到书房"><span className="brand-symbol"><BookOpen size={22} strokeWidth={1.4} /></span><strong>书房<span>Chat</span></strong><i /><small>把思绪写成书</small></a></header>
     <div className="room-layer" inert={opened || !!journey} aria-hidden={opened || !!journey}><Room onOpen={openBook} bookAway={opened || !!journey} shelfRef={shelfRef} journey={journey} onReveal={revealReader} onFinish={finishJourney} /></div>
     {opened && <section className="reader-surface" aria-label="窗边书桌上的书" inert={!!journey}>
       <div className="desk-caption" aria-hidden="true"><span>BY THE WINDOW</span><strong>窗边书桌 · 慢慢读，慢慢写</strong></div>
-      <div className="reader-toolbar"><div className="book-identity"><button className="icon-button back-room" ref={closeRef} onClick={closeBook} aria-label="合上书，起身"><PanelLeftClose size={18} /></button><div><strong>{BOOK_TITLE}</strong><span>书房文库 / 001 <i /> {messages.length ? `${Math.ceil(messages.length / 2)} 轮对话` : '一本可以继续写下去的书'}</span></div></div><div className="view-switch" aria-label="阅读模式"><button className={mode === 'book' ? 'active' : ''} onClick={() => setMode('book')}><BookOpen size={15} />书页</button><button className={mode === 'notes' ? 'active' : ''} onClick={() => setMode('notes')}><PenLine size={15} />速记</button></div><button className="text-button contents-button" onClick={() => setDirectory(true)}><List size={16} />目录<span>{totalPages} 页</span></button></div>
+      <div className="reader-toolbar"><div className="book-identity"><button className="icon-button back-room" ref={closeRef} onClick={closeBook} aria-label="合上书，起身"><PanelLeftClose size={18} /></button><div><strong>{BOOK_TITLE}</strong><span>STUDY LIBRARY / I · {Math.ceil(messages.length / 2)} conversations</span></div></div><div className="view-switch" aria-label="阅读模式"><button className={mode === 'book' ? 'active' : ''} onClick={() => { cancelTurn(); setMode('book') }}><BookOpen size={15} />书页</button><button className={mode === 'notes' ? 'active' : ''} onClick={() => { cancelTurn(); setMode('notes') }}><PenLine size={15} />速记</button></div><button className="text-button contents-button" onClick={() => setDirectory(true)}><List size={16} />目录<span>{totalPages} 页</span></button></div>
       <main className="workspace" ref={workspaceRef}>
-        {mode === 'book' ? <div className="book-stage"><div className="spread" key={single ? 'single' : 'double'}>{renderPage(pages[pageIndex], pageIndex)}{!single && renderPage(pages[pageIndex + 1], pageIndex + 1)}<div className="book-ribbon" /></div><div className="pagination"><button className="icon-button" onClick={() => flip(-1)} disabled={pageIndex === 0} aria-label="上一页"><ArrowLeft size={17} /></button><span>{pageLabel} <i>/</i> 共 {totalPages} 页</span><button className="icon-button" onClick={() => flip(1)} disabled={pageIndex + (single ? 1 : 2) >= pages.length} aria-label="下一页"><ArrowRight size={17} /></button></div><div className="reading-hint">{notice ? <><Check size={13} />{notice}</> : <>翻过一页，给思考一点时间。<span>← → 翻页</span></>}</div></div> : <section className="notes-view" ref={notesRef} onScroll={event => { const node = event.currentTarget; notesFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32; notesScrollTop.current = node.scrollTop }}><div className="notes-heading"><span className="chapter-kicker">FIELD NOTES</span><h1>让想法，先流动起来。</h1><p>不必整理，不必成章。这里的每一笔，也会留在书中。</p></div>{messages.length === 0 ? <div className="notes-empty"><Feather size={32} strokeWidth={1} /><h2>这一页，还没有写下什么。</h2><p>从下方写一个问题，让对话开始。</p><button className="text-button" onClick={() => { setDraft('如何给每天的思考留一点空白？'); textareaRef.current?.focus() }}>试试：如何给每天的思考留一点空白？ ↗</button></div> : messages.map(message => <article className={`note-entry ${message.role}`} key={message.id}><div className="note-label">{message.role === 'user' ? '你 / 提问' : '书房 / 模拟回应'}<button onClick={() => jump(message.id)} aria-label="在书页中阅读">在书页中阅读 ↗</button></div><div className="prose" dangerouslySetInnerHTML={{ __html: safeMarkdown(message.content) }} />{message.role === 'assistant' && <SourceCard />}</article>)}{stream !== null && <div className="notes-writing"><LoaderCircle className="spinning" size={14} /> 正在手稿纸上书写…</div>}</section>}
+        <div className="book-stage">
+          {mode === 'book' ? <div className="spread" ref={spreadRef} style={thickness} key={single ? 'single' : 'double'}>
+            <div className="page-stack left-stack" aria-hidden="true" /><div className="page-stack right-stack" aria-hidden="true" />
+            {renderPage(pages[pageIndex], pageIndex)}{!single && renderPage(pages[pageIndex + 1], pageIndex + 1)}
+            <div className="leaf-host" ref={leafHost} aria-hidden="true" inert /><div className="book-ribbon" />
+            <button className="writing-bookmark" onClick={() => jump(writing ? streamJob.current?.id || 'writing' : 'writing')} aria-label="翻到续写页"><Feather size={14} /><span>续写</span></button>
+          </div> : <div className="spread notes-spread" style={thickness}><div className="page-stack right-stack" aria-hidden="true" /><article className="paper notes-paper"><header className="running-head"><span>FIELD NOTES</span><span>STUDY LIBRARY</span></header><div className="paper-body prose notes-scroll" ref={notesRef} onScroll={event => { const node = event.currentTarget; notesFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32; notesScrollTop.current = node.scrollTop }}><span className="chapter-kicker">FIELD NOTES</span><h1>让想法，先流动起来。</h1>{messages.length === 0 && <p>不必整理，不必成章。这里的每一笔，也会留在书中。</p>}{messages.map(message => <section className="written-entry" key={message.id}><h6>{message.role === 'user' ? 'Question · 提问' : 'Response · 回应'} <button onClick={() => jump(message.id)} aria-label="在书页中阅读">↗</button></h6><div dangerouslySetInnerHTML={{ __html: safeMarkdown(message.content) }} />{message.process && <div dangerouslySetInnerHTML={{ __html: processRecordHtml(message.process) }} />}</section>)}{writing ? liveReply() : composer()}</div><footer className="page-footer"><span>Field notes</span><i /></footer></article></div>}
+          <div className="pagination">{mode === 'book' && <><button className="icon-button" onClick={() => flip(-1)} disabled={turning || pageIndex === 0} aria-label="上一页"><ArrowLeft size={17} /></button><span>{visibleFolios.join(' — ') || 'Front matter'} <i>/</i> {single ? pageIndex + 1 : Math.floor(pageIndex / 2) + 1} of {Math.ceil(totalPages / (single ? 1 : 2))} {single ? 'pages' : 'spreads'}</span><button className="icon-button" onClick={() => flip(1)} disabled={turning || pageIndex + (single ? 1 : 2) >= pages.length} aria-label="下一页"><ArrowRight size={17} /></button></>}</div>
+          <div className="reading-hint">{notice ? <><Check size={13} />{notice}</> : <>纸页之内，继续对话。<span>← → 翻页 · 点击书签续写</span></>}</div>
+        </div>
       </main>
-      <div className="composer-wrap" ref={composerRef}><div className="composer"><div className="composer-top"><Feather size={18} strokeWidth={1.4} /><textarea id="study-question" name="question" ref={textareaRef} value={draft} rows={1} placeholder="此刻，你在想什么？" aria-label="写下你的问题" onChange={event => setDraft(event.target.value)} onCompositionStart={() => { composition.current = true }} onCompositionEnd={() => { composition.current = false }} onKeyDown={event => { if (shouldSend({ key: event.key, shiftKey: event.shiftKey, isComposing: composition.current || event.nativeEvent.isComposing, keyCode: event.nativeEvent.keyCode })) { event.preventDefault(); send() } }} /><button className="send-button" onClick={send} disabled={!draft.trim() || stream !== null} aria-label="发送问题"><ArrowUp size={19} /></button></div><div className="composer-bottom"><div className="model-controls"><label><span className="model-dot" /><select id="study-model" name="model" aria-label="示例模型（模拟）" value={model} onChange={event => setModel(event.target.value)}><option>书房 · 沉思</option><option>书房 · 轻语</option></select><ChevronDown size={11} /></label><i /><label><select id="study-effort" name="effort" aria-label="推理强度（模拟）" value={effort} onChange={event => setEffort(event.target.value)}><option>标准推理</option><option>深入推理</option><option>轻量推理</option></select><ChevronDown size={11} /></label><span className="mock-badge">模拟</span></div><span className="keyboard-hint">Enter 发送 <i>·</i> Shift + Enter 换行</span></div></div><div className="composer-footnote"><span>每轮对话，都是书里新的一页。</span><span>仅当前窗口保存 · 刷新后重置</span></div></div>
-      {directory && <div className="drawer-overlay" onClick={() => setDirectory(false)}><aside className="directory-drawer" role="dialog" aria-modal="true" aria-label="全书目录" onClick={event => { event.stopPropagation(); void handleLink(event) }} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDirectory(false) } }}><header><div><span className="chapter-kicker">YOUR BOOK</span><h2>沿着书页，回来。</h2></div><button autoFocus className="icon-button" onClick={() => setDirectory(false)} aria-label="关闭目录"><X size={19} /></button></header><p>{BOOK_TITLE} <span>共 {totalPages} 页</span></p><button className="cover-jump" onClick={() => jump('cover')}>封面 <ArrowUp size={13} /></button>{toc()}<SourceCard /><footer>页码随窗口排版计算，入口始终留在原处。</footer></aside></div>}
-      {stream !== null && <aside className="manuscript" style={{ bottom: composerHeight + 12, height: `min(420px, calc(100dvh - ${composerHeight + 155}px))` }} aria-label="正在生成的手稿纸"><div className="manuscript-header"><div><span className="ink-dot" /><strong>正在落笔</strong><small>手稿纸 / 尚未装订</small></div><button onClick={() => bind(true)}><Square size={11} />停笔</button></div><div className="manuscript-scroll prose" ref={manuscriptRef} onScroll={event => { const node = event.currentTarget; manuscriptFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32 }} tabIndex={0}><div dangerouslySetInnerHTML={{ __html: safeMarkdown(stream, true) }} /><span className="ink-cursor" /></div><div className="manuscript-footer"><Feather size={12} /> 模拟生成中，完成后自动装订进书页</div></aside>}
+      {directory && <div className="drawer-overlay" onClick={() => setDirectory(false)}><aside className="directory-drawer" role="dialog" aria-modal="true" aria-label="全书目录" onClick={event => { event.stopPropagation(); void handleLink(event) }} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDirectory(false) } }}><header><div><span className="chapter-kicker">CONTENTS</span><h2>A way back.</h2></div><button autoFocus className="icon-button" onClick={() => setDirectory(false)} aria-label="关闭目录"><X size={19} /></button></header><p>{BOOK_TITLE}</p><button className="cover-jump" onClick={() => jump('cover')}>Half Title <ArrowUp size={13} /></button>{toc()}<footer>页码随窗口排版计算，章节入口始终留在原处。</footer></aside></div>}
     </section>}
     {linkError && <div className="toast" role="alert">{linkError}<button onClick={() => setLinkError('')}>关闭</button></div>}
     <div className="prose pagination-probe" ref={probeRef} aria-hidden="true" />

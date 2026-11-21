@@ -1,9 +1,22 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { SOURCE_CARD_HTML, type Section } from './content'
+import { SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
 
-export type BookPage = { sectionId: string; title: string; html: string; kind?: 'cover' | 'toc' | 'blank'; role?: 'user' | 'assistant'; offset?: number; number?: number }
+export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; offset?: number; number?: number; folio?: string }
 export type ReadingPosition = { sectionId: string; offset: number }
+
+export function romanFolio(value: number): string {
+  let result = ''
+  for (const [n, symbol] of [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']] as const) {
+    while (value >= n) { result += symbol; value -= n }
+  }
+  return result
+}
+
+export function processRecordHtml(record: ProcessRecord): string {
+  const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  return `<details class="process-record"><summary>Notes &amp; sources · 过程记录（示例）</summary><h6>Reasoning summary · 推理摘要示例</h6><p>先明确问题，再给出可尝试的小步骤。这是预写的摘要示例，不是模型的隐藏思维链。</p><h6>Tool record · 工具调用示例</h6><p><code>reference.lookup</code> — illustrative only; not executed. 参数：当前问题；示例结果：阅读笔记。没有执行工具或访问网页。</p><p>Model: ${escape(record.model)} · ${escape(record.effort)}. Local template; no model request.</p>${SOURCE_CARD_HTML}</details>`
+}
 
 export function safeMarkdown(markdown: string, streaming = false): string {
   // An unfinished fenced block stays literal until its closing fence arrives.
@@ -103,13 +116,20 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
     }
     if (section.kind) { pages.push(page('')); continue }
     const template = document.createElement('template')
-    template.innerHTML = safeMarkdown(section.markdown) + (section.source ? SOURCE_CARD_HTML : '')
+    template.innerHTML = safeMarkdown(section.markdown) + (section.source ? SOURCE_CARD_HTML : '') + (section.process ? processRecordHtml(section.process) : '')
     let current = ''
     const blocks = Array.from(template.content.children)
     for (const [blockIndex, block] of blocks.entries()) {
       const next = blocks[blockIndex + 1]
       const heading = /^H[1-6]$/.test(block.tagName)
       const shortEnding = blockIndex === blocks.length - 2 && next?.tagName === 'P' && fragmentLength(next) < 80
+      // A closed editorial note is one folded object, not paginated hidden text.
+      // Expanded content scrolls inside its paper leaf without losing any text.
+      if (block.matches('details')) {
+        if (current && !fits(current + block.outerHTML)) { pages.push(page(current)); current = '' }
+        current += block.outerHTML
+        continue
+      }
       if (current && block.matches('.source-card') && !fits(current + block.outerHTML)) { pages.push(page(current)); current = '' }
       if (current && next && (heading || shortEnding)) {
         const following = shortEnding ? next.outerHTML : sliceElement(next, 0, Math.min(60, fragmentLength(next)))
@@ -143,7 +163,16 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
   const cover = pages.findIndex(page => page.kind === 'cover')
   const numberingStart = cover < 0 ? 0 : cover + 2
   const offsets = new Map<string, number>()
+  let frontNumber = 0, bodyNumber = 0
   for (const [index, page] of pages.entries()) {
+    const section = sections.find(section => section.id === page.sectionId)
+    if (section?.matter === 'front') {
+      frontNumber++
+      if (!section.hideFolio && page.kind !== 'blank') page.folio = romanFolio(frontNumber)
+    } else if (page.kind === 'blank') {
+      if (bodyNumber) bodyNumber++
+      else if (frontNumber) frontNumber++
+    } else if (section) page.folio = String(++bodyNumber)
     page.offset = offsets.get(page.sectionId) || 0
     const template = document.createElement('template')
     template.innerHTML = page.html

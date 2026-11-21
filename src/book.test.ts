@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { isHttpUrl, pageForPosition, pageForSection, paginate, safeMarkdown, shouldSend, sliceElement, stoppedManuscript, turnPage } from './book'
+import { isHttpUrl, pageForPosition, pageForSection, paginate, processRecordHtml, romanFolio, safeMarkdown, shouldSend, sliceElement, stoppedManuscript, turnPage } from './book'
 import { conversationSections, mockReply } from './content'
 
 describe('safe manuscript rendering', () => {
@@ -62,6 +62,32 @@ describe('composition and page navigation', () => {
 })
 
 describe('DOM pagination', () => {
+  it('keeps publishing openings recto, uses roman front matter, and restarts body folios', () => {
+    const probe = document.createElement('div')
+    const pages = paginate([
+      { id: 'half', title: 'Half Title', kind: 'cover', matter: 'front', hideFolio: true, markdown: '' },
+      { id: 'title', title: 'Title Page', kind: 'title', matter: 'front', recto: true, hideFolio: true, markdown: '' },
+      { id: 'imprint', title: 'Copyright', kind: 'imprint', matter: 'front', hideFolio: true, markdown: '' },
+      { id: 'toc', title: 'Contents', kind: 'toc', matter: 'front', recto: true, markdown: '' },
+      { id: 'chapter', title: 'Chapter One', recto: true, markdown: '# Body' },
+    ], probe, 400)
+    for (const id of ['half', 'title', 'toc', 'chapter']) expect(pageForSection(pages, id) % 2).toBe(1)
+    expect(pages[pageForSection(pages, 'title')].folio).toBeUndefined()
+    expect(pages[pageForSection(pages, 'toc')].folio).toBe('v')
+    expect(pages[pageForSection(pages, 'chapter')].folio).toBe('1')
+    expect(romanFolio(49)).toBe('xlix')
+  })
+  it('keeps a collapsed process record whole and escapes its metadata', () => {
+    const probe = document.createElement('div')
+    const pages = paginate([{ id: 'reply', title: 'Response', markdown: '正文', process: { model: '<img src=x onerror=alert(1)>', effort: 'standard' } }], probe, 400)
+    const result = document.createElement('div')
+    result.innerHTML = pages.map(page => page.html).join('')
+    expect(result.querySelectorAll('details')).toHaveLength(1)
+    expect(result.querySelector('details')?.open).toBe(false)
+    expect(result.querySelector('details')?.textContent).toContain('not executed')
+    expect(result.querySelector('img')).toBeNull()
+    expect(processRecordHtml({ model: 'local', effort: 'standard' })).not.toContain(' open')
+  })
   it('continues ordered-list numbering after removing earlier list items', () => {
     const element = document.createElement('ol')
     element.innerHTML = '<li>一</li><li>二</li><li>三</li><li>四</li>'
