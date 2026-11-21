@@ -114,6 +114,16 @@ describe('DOM pagination', () => {
     expect(unfolded[1].markdown).toContain('not executed')
     expect(unfolded[1].markdown).toContain('Study · Quiet')
   })
+  it('preserves valid Chinese punctuation in bare URL queries/paths and explicit destinations', () => {
+    const result = document.createElement('div')
+    result.innerHTML = safeMarkdown('https://example.com/?q=你好，世界\n\nhttps://example.com/你好，世界\n\n[https://example.com/?q=你好，世界](https://example.com/?q=你好，世界)\n\n[https://example.com/带”引号](https://example.com/带”引号)')
+    const anchors = [...result.querySelectorAll('a')]
+    expect(anchors).toHaveLength(4)
+    expect(new URL(anchors[0].href).searchParams.get('q')).toBe('你好，世界')
+    expect(decodeURI(anchors[1].getAttribute('href')!)).toBe('https://example.com/你好，世界')
+    expect(new URL(anchors[2].href).searchParams.get('q')).toBe('你好，世界')
+    expect(decodeURI(anchors[3].getAttribute('href')!)).toBe('https://example.com/带”引号')
+  })
   it('does not bind an empty framed code block when stopped at an opening fence', () => {
     expect(safeMarkdown(stoppedManuscript('```typescript\n'))).not.toContain('<pre>')
   })

@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify'
-import { marked } from 'marked'
+import { marked, Renderer } from 'marked'
 import { SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
 
 export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; live?: boolean; tocStart?: number; tocEnd?: number; offset?: number; number?: number; folio?: string }
@@ -28,7 +28,21 @@ export function safeMarkdown(markdown: string, streaming = false): string {
     const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     return `${prefix}<pre class="unfinished">${escape(markdown.slice(start))}</pre>`
   }
-  const html = DOMPurify.sanitize(marked.parse(markdown, { async: false }) as string, {
+  const renderer = new Renderer()
+  const renderLink = renderer.link
+  renderer.link = function (token) {
+    // Only bare GFM URLs need prose-boundary repair. Explicit Markdown links
+    // keep their exact destinations, even when their labels are also URLs.
+    if (!/^https?:\/\//i.test(token.raw)) return renderLink.call(this, token)
+    const authority = token.raw.match(/^https?:\/\/[^/?#]*/i)?.[0] || ''
+    const boundaries = [token.raw.search(/[“”‘’「」『』《》〈〉【】〔〕]/u), authority.search(/[，！？；：、]/u)].filter(index => index >= 0)
+    if (!boundaries.length) return renderLink.call(this, token)
+    const end = Math.min(...boundaries)
+    const clean = token.raw.slice(0, end)
+    const suffix = token.raw.slice(end).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return renderLink.call(this, { ...token, href: clean, text: clean, tokens: [{ type: 'text', raw: clean, text: clean }] }) + suffix
+  }
+  const html = DOMPurify.sanitize(marked.parse(markdown, { async: false, renderer }) as string, {
     ALLOWED_TAGS: ['p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'blockquote', 'ul', 'ol', 'li', 'pre', 'code', 'a', 'hr', 'del'],
     ALLOWED_ATTR: ['href', 'title', 'class', 'start'],
   })
@@ -46,23 +60,6 @@ export function safeMarkdown(markdown: string, streaming = false): string {
     paragraph.append(node)
   }
   template.content.querySelectorAll('a').forEach(anchor => {
-    const href = anchor.getAttribute('href') || ''
-    // GFM auto-links can absorb Chinese closing quotes into a valid IDN host.
-    // Keep that punctuation as text, outside the auto-generated link.
-    const text = anchor.textContent || ''
-    const decoded = (value: string) => { try { return decodeURI(value) } catch { return value } }
-    if (decoded(text) === decoded(href)) {
-      const delimiter = text.search(/[“”‘’「」『』《》〈〉【】〔〕，！？；：、]/u)
-      const clean = (delimiter < 0 ? text : text.slice(0, delimiter)).replace(/[。]+$/u, '')
-      const suffix = text.slice(clean.length)
-      const encodedSuffix = encodeURI(suffix)
-      const removed = href.endsWith(suffix) ? suffix.length : href.toLowerCase().endsWith(encodedSuffix.toLowerCase()) ? encodedSuffix.length : 0
-      if (suffix && removed) {
-        anchor.setAttribute('href', href.slice(0, -removed))
-        anchor.textContent = clean
-        anchor.after(document.createTextNode(suffix))
-      }
-    }
     if (!isHttpUrl(anchor.getAttribute('href') || '')) anchor.removeAttribute('href')
   })
   return template.innerHTML
