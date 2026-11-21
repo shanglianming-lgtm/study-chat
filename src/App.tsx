@@ -5,7 +5,7 @@ import type { Journey } from './RoomScene'
 import BookFrontMatter, { initialMetadata, PaperField, type BookMetadata } from './BookFrontMatter'
 import { BOOK_TITLE, conversationSections, mockReply, sections, type Message, type ProcessRecord } from './content'
 import { isHttpUrl, pageForPosition, pageForSection, paginate, processRecordHtml, safeMarkdown, shouldSend, stoppedManuscript, turnPage, type BookPage, type ReadingPosition } from './book'
-import { LEAF_PERSPECTIVE, LEAF_SEGMENTS, leafOutline } from './leafGeometry'
+import { LEAF_PERSPECTIVE, LEAF_SEGMENTS, leafOutline, leafPose } from './leafGeometry'
 import './physicalBook.css'
 
 function snapshot(node: HTMLElement) {
@@ -54,7 +54,6 @@ export default function App() {
   const closeRef = useRef<HTMLButtonElement>(null)
   const turnSnapshot = useRef<{ direction: number; front: HTMLElement; under?: HTMLElement } | null>(null)
   const turnAnimation = useRef<Animation | null>(null)
-  const turnCurves = useRef<Animation[]>([])
   const hasPickedUp = useRef(false)
   const composition = useRef(false)
   const streamJob = useRef<{ full: string; text: string; id: string; process: ProcessRecord; timer: ReturnType<typeof setInterval> } | null>(null)
@@ -87,8 +86,6 @@ export default function App() {
   }, [])
   const cancelTurn = useCallback(() => {
     turnAnimation.current?.cancel()
-    turnCurves.current.forEach(animation => animation.cancel())
-    turnCurves.current = []
     turnAnimation.current = null
     leafHost.current?.replaceChildren()
     turnSnapshot.current = null
@@ -186,8 +183,6 @@ export default function App() {
     // the next leaf (for example, past the profile's opening heading).
     spreadRef.current?.querySelectorAll<HTMLElement>(':scope > .paper > .paper-body').forEach(body => { body.scrollTop = 0 })
     turnAnimation.current?.cancel()
-    turnCurves.current.forEach(animation => animation.cancel())
-    turnCurves.current = []
     turnAnimation.current = null
     leafHost.current?.replaceChildren()
     const pending = turnSnapshot.current
@@ -221,10 +216,6 @@ export default function App() {
         face.append(content); strip.append(face)
       }
       parent.append(strip); parent = strip
-      if (i) {
-        const bend = (pending.direction > 0 ? 1 : -1) * 54 * (1 + i / (LEAF_SEGMENTS - 1)) / (LEAF_SEGMENTS * 1.5 - 1)
-        turnCurves.current.push(strip.animate([{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${bend}deg)`, offset: .48 }, { transform: 'rotateY(0deg)' }], { duration: 760, easing: 'cubic-bezier(.32,.08,.24,1)', fill: 'forwards' }))
-      }
     }
     const projection = document.createElement('div')
     projection.className = 'leaf-projection'
@@ -236,12 +227,10 @@ export default function App() {
     silhouette.append(outline)
     leafHost.current.append(silhouette, projection)
     setTurning(true)
-    const angle = pending.direction > 0 ? -180 : 180
-    const animation = leaf.animate([
-      { transform: 'rotateY(0deg) translateZ(1px)' },
-      { transform: `rotateY(${angle * .46}deg) translateZ(16px) rotateZ(${pending.direction > 0 ? -1.5 : 1.5}deg)`, offset: .48 },
-      { transform: `rotateY(${angle}deg) translateZ(1px)` },
-    ], { duration: 760, easing: 'cubic-bezier(.32,.08,.24,1)', fill: 'forwards' })
+    // A nonvisual WAAPI clock retains pause/seek and easing. Do not animate
+    // transforms independently on the compositor: the JS clip can lag them.
+    const animation = leaf.animate([],
+      { duration: 760, easing: 'cubic-bezier(.32,.08,.24,1)', fill: 'forwards' })
     turnAnimation.current = animation
     const width = parseFloat(pending.front.style.width), height = parseFloat(pending.front.style.height)
     const hostWidth = parseFloat(getComputedStyle(projection).width)
@@ -254,29 +243,30 @@ export default function App() {
       Object.assign(under.style, { position: 'absolute', top: '0', left: pending.direction > 0 ? '0' : `${hostWidth - width}px`, zIndex: '0' })
       leafHost.current.append(under)
     }
-    const transform = (element: HTMLElement) => {
-      const value = getComputedStyle(element).transform
-      return new DOMMatrix(value === 'none' ? undefined : value).toFloat64Array()
-    }
-    let lastTime: CSSNumberish | null = null
+    let lastProgress: number | null = null
     const followOutline = () => {
       if (!leaf.isConnected) return
-      if (animation.currentTime !== lastTime) {
-        lastTime = animation.currentTime
-        const points = leafOutline(width, height, hostWidth, pending.direction > 0, transform(leaf), strips.map(transform), segmentWidth)
+      const progress = animation.effect?.getComputedTiming().progress ?? 0
+      if (progress !== lastProgress) {
+        lastProgress = progress
+        const { root, bends } = leafPose(progress, pending.direction > 0)
+        // Paper, clip and shadow are committed together from identical matrices.
+        leaf.style.transform = `matrix3d(${root.join(',')})`
+        strips.forEach((strip, i) => { strip.style.transform = `matrix3d(${bends[i].join(',')})` })
+        const points = leafOutline(width, height, hostWidth, pending.direction > 0, root, bends, segmentWidth)
         projection.style.clipPath = `polygon(${points.map(p => `${p.x}px ${p.y}px`).join(',')})`
         outline.setAttribute('d', `${points.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join('')}Z`)
       }
       requestAnimationFrame(followOutline)
     }
     followOutline()
-    animation.onfinish = () => { projection.remove(); silhouette.remove(); under?.remove(); turnAnimation.current = null; turnCurves.current = []; setTurning(false) }
+    animation.onfinish = () => { projection.remove(); silhouette.remove(); under?.remove(); turnAnimation.current = null; setTurning(false) }
   }, [pageIndex, mode, single, metrics.width, metrics.height, fontReady])
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
     const update = () => { if (query.matches) cancelTurn() }
     query.addEventListener('change', update)
-    return () => { query.removeEventListener('change', update); turnAnimation.current?.cancel(); turnCurves.current.forEach(animation => animation.cancel()) }
+    return () => { query.removeEventListener('change', update); turnAnimation.current?.cancel() }
   }, [cancelTurn])
   const bind = useCallback((stopped = false) => {
     const job = streamJob.current

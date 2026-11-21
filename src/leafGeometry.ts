@@ -5,6 +5,21 @@ export const LEAF_PERSPECTIVE = 1800
 
 type Point = { x: number; y: number }
 
+/** One eased timeline sample drives both the paper and its projected outline. */
+export function leafPose(progress: number, forward: boolean) {
+  const p = Math.max(0, Math.min(1, progress))
+  const fold = p <= .48 ? p / .48 : (1 - p) / .52
+  const angle = forward ? -Math.PI : Math.PI
+  const rotation = p <= .48 ? angle * .46 * fold : angle * (1 - .54 * fold)
+  const root = new Matrix4().makeRotationY(rotation)
+    .multiply(new Matrix4().makeTranslation(0, 0, 1 + 15 * fold))
+    .multiply(new Matrix4().makeRotationZ((forward ? -1 : 1) * Math.PI / 120 * fold))
+  const bends = Array.from({ length: LEAF_SEGMENTS }, (_, i) => new Matrix4()
+    .makeRotationY(i ? (forward ? 1 : -1) * Math.PI * .3 *
+      (1 + i / (LEAF_SEGMENTS - 1)) / (LEAF_SEGMENTS * 1.5 - 1) * fold : 0).elements)
+  return { root: root.elements, bends }
+}
+
 /** Project the nominal, joined sheet edges, not each face's antialias bleed. */
 export function leafOutline(width: number, height: number, hostWidth: number, forward: boolean,
   root: ArrayLike<number>, bends: ArrayLike<number>[], segmentWidth = width / bends.length) {

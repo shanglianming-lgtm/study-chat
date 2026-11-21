@@ -1,12 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import { Matrix4 } from 'three'
-import { LEAF_SEGMENTS, leafOutline } from './leafGeometry'
+import { LEAF_SEGMENTS, leafOutline, leafPose } from './leafGeometry'
 
 const identity = () => new Matrix4().elements
 const bends = (angle = 0) => Array.from({ length: LEAF_SEGMENTS }, (_, i) =>
   new Matrix4().makeRotationY(i ? angle : 0).elements)
 
 describe('continuous turning-sheet silhouette', () => {
+  it('keeps the animated paper and outline mirrored across both directions at every phase', () => {
+    for (const progress of [0, .1, .3, .48, .7, .9, 1]) {
+      const forward = leafPose(progress, true), backward = leafPose(progress, false)
+      expect(forward.bends).toHaveLength(LEAF_SEGMENTS)
+      const front = leafOutline(420, 500, 840, true, forward.root, forward.bends)
+      const back = leafOutline(420, 500, 840, false, backward.root, backward.bends)
+      front.forEach((point, i) => {
+        expect(point.x + back[i].x).toBeCloseTo(840, 8)
+        expect(point.y).toBeCloseTo(back[i].y, 8)
+      })
+    }
+  })
+
+  it('retains the flat endpoint and peak bend poses without depending on earlier clock samples', () => {
+    for (const forward of [true, false]) {
+      const start = leafPose(0, forward), end = leafPose(1, forward)
+      expect(start.bends.every(bend => bend.every((value, i) => value === identity()[i]))).toBe(true)
+      expect(end.bends).toEqual(start.bends)
+      expect(start.root[14]).toBe(1)
+      expect(end.root[0]).toBeCloseTo(-1, 8)
+      const peak = leafPose(.48, forward)
+      expect(Math.atan2(peak.bends.at(-1)![8], peak.bends.at(-1)![0]) * 180 / Math.PI)
+        .toBeCloseTo((forward ? 1 : -1) * 108 / 17, 8)
+      leafPose(.9, forward)
+      expect(leafPose(.48, forward)).toEqual(peak)
+    }
+  })
+
   it('starts on the correct half of a spread without interior vertical edge steps', () => {
     for (const forward of [true, false]) {
       const points = leafOutline(420, 500, 840, forward, identity(), bends())
