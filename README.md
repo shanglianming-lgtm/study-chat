@@ -6,7 +6,7 @@
 
 - Windows 10 / 11，推荐 PowerShell 7。
 - [Node.js 22 LTS](https://nodejs.org/) 和 pnpm 10.11（可运行 `npm install -g pnpm@10.11.0`）。
-- **仅桌面入口需要**：[Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)，选择「使用 C++ 的桌面开发」，安装 MSVC 和 Windows 10/11 SDK。
+- **仅桌面入口需要**：[Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)，选择「使用 C++ 的桌面开发」，安装 MSVC 和 Windows 10/11 SDK。必须等待安装器显示安装完成，再打开新 PowerShell；可使用「Developer PowerShell for VS 2022」。否则可能误用 Git 的 `link.exe`，导致 Rust 链接失败。
 - **仅桌面入口需要**：[Rust stable / rustup](https://www.rust-lang.org/tools/install)，使用默认的 `stable-msvc` 工具链。
 - **仅桌面入口需要**：[Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。Windows 11 通常已内置，仍需确认可用。
 - 安装工具链后重新打开 PowerShell，确保 `node --version`、`pnpm --version`、`rustc --version` 可用。详见 [Tauri 官方 Windows 依赖说明](https://v2.tauri.app/start/prerequisites/#windows)。
@@ -46,7 +46,8 @@ pnpm tauri dev
 
 ## 实现边界
 
-- 书房由 CSS 分层插画、透视和阴影构成，不使用 3D 引擎。尊重 `prefers-reduced-motion`。
+- 书房是 Three.js 实时三维场景：房间、窗框、书架、书桌、椅子、台灯、植物和书都由本地几何体建模，具有真实透视、灯光和阴影；无外部模型或在线贴图。拖动观察、滚轮缩放，点击带书名的书脊取书。
+- 同一本带铰链封面的 3D 书从书架取出，移到桌面摊开，再进入可读的 HTML 书页；合上后逆向归架。尊重 `prefers-reduced-motion`，减少动态效果时直接切换。无 WebGL 时显示可用的取书入口，不阻断阅读和对话。
 - 暖白纸色、本地打包的 Noto Serif SC（宋体回退）、镜像边距与实际页码。按真实 DOM 测量分页；长段落和代码可跨页，片段保留链接与内联标记。窗口或字体就绪时重新排版，导航目标保留章节 / 消息 ID。
 - Markdown 支持段落、标题、列表、代码、链接；DOMPurify 限制标签和属性。不加载 Markdown 图片，防止粘贴内容触发远程资源。流式未闭合围栏按纯文本显示。
 - 仅主动点击 HTTP(S) 正文链接时打开浏览器；Tauri 使用受限 opener capability，网页使用新标签页。不会自动访问输入的网址、抓取网页或读取浏览器登录态。「演示」来源卡不是检索结果。
@@ -67,14 +68,17 @@ GitHub Actions 运行前端类型、测试和构建检查。仓库没有预提�
 
 ## Windows 验证范围
 
-Windows 测试已确认：在安装 Visual Studio 2022 MSVC / Windows SDK 的机器上，清理 Rust 构建产物后，`pnpm tauri dev` 可以完成编译并打开独立窗口。仓库包含所需 ICO；开发时生成的 `src-tauri/gen/` schema 不需要提交。
+Windows Server 2022 / WebView2 157 / Microsoft Pinyin 测试已确认：清理 Rust 构建产物后，`pnpm tauri dev` 完成编译并打开独立窗口；宽屏双页和 388px 单页无横向滚动；粘贴 URL 不访问，点击 HTTPS 链接由 Edge 打开；输入法组合期间 Enter 不误发，Shift+Enter 换行；停笔、装订、目录跳转、书页／速记切换和方向键可用。仓库包含所需 ICO，开发生成的 `src-tauri/gen/` schema 已忽略。
+
+这些 Windows 结果来自三维书房加入之前的版本；原取还书动效的减少动态效果设置已验证。新的三维场景和翻页动效仍需 Windows 复验。
+
+**已知 Windows 问题**：测试机器上的微软拼音候选框会出现在屏幕左上角，而非输入框旁。与 [WebView2 上游候选框定位问题](https://github.com/MicrosoftEdge/WebView2Feedback/issues/5675)症状相符，但尚未确认本应用的具体触发条件；不能视为已修复。输入组合事件的防误发与候选框位置是两项不同的验证。
 
 以下项目**尚未完成 Windows 真机验收**：
 
 - 从零安装 MSVC / Windows SDK / WebView2 的完整流程。
 - DPI / 缩放和窗口尺寸变化。
-- Windows 系统默认浏览器的 opener 实际唤起。
-- Windows 中文输入法（微软拼音等）的真实候选确认行为；已覆盖浏览器组合输入事件规则。
-- Windows 系统「动画效果」设置到 WebView2 减少动态效果媒体查询的映射。
+- 新三维书房在 Windows WebView2 的渲染、交互、取还书和翻页动效／减少动态效果。
+- 使用 Enter 确认候选词（该机器的微软拼音使用 Space 确认），以及其他输入法。
 
 本版未生成或验证安装包、签名和自动更新。上述限制不影响 `pnpm dev` 网页入口试用。

@@ -69,6 +69,23 @@ body{min-width:0}
 .cover-art i:nth-child(3){top:31px}
 .directory-drawer{backdrop-filter:none}
 .drawer-overlay{backdrop-filter:none;background:#404b3440}
+.paper-body.prose>.book-cover{display:flex}
+.reading .room-layer{overflow:hidden}
+.room-art.room-3d{width:65%;height:calc(100% - 70px);top:0;right:0;mask-image:none;overflow:hidden}
+.scene-canvas{position:absolute;inset:0 0 48px}
+.scene-canvas canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.scene-canvas canvas:active{cursor:grabbing}
+.scene-spine-button{position:absolute;width:32px;transform:translate(-50%,-50%);border-radius:3px;z-index:2;padding:0}
+.scene-spine-button span{position:absolute;bottom:calc(100% + 10px);right:-22px;white-space:nowrap;padding:8px 12px;background:#faf7ed;box-shadow:0 3px 14px #39432c20;font-size:11px;letter-spacing:1px;border-radius:4px;opacity:1;pointer-events:auto}
+.scene-spine-button:hover span,.scene-spine-button:focus-visible span{opacity:1}
+.scene-spine-button:focus-visible{outline:2px solid #839274;outline-offset:4px;background:#aabb7730}
+.scene-spine-button.book-away{visibility:hidden}
+.scene-fallback-button{left:50%!important;top:50%!important;width:210px;height:50px!important;background:#627052;color:#faf7ee}
+.scene-fallback-button span{position:static;opacity:1;box-shadow:none;background:none;transform:none;color:inherit;white-space:normal}
+.scene-instructions{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;color:#7d876f;font-size:9px;pointer-events:none}
+.scene-instructions b{border:1px solid #a9b19c;border-radius:3px;padding:2px 5px;font-size:8px;font-weight:400}
+@media (min-width:571px) and (max-width:859px){.room-art.room-3d{width:63%;right:0;height:calc(100% - 60px);top:0}.scene-instructions{font-size:8px}}
+@media (max-width:570px){.room-art.room-3d{width:100%;height:330px;inset:auto;margin-top:12px}.scene-instructions{bottom:0;font-size:8px}.room-view{min-height:0}}
 @container (max-height:360px){
   .book-cover{padding-top:0}
   .book-cover .cover-title{font-size:27px!important;line-height:1.45}

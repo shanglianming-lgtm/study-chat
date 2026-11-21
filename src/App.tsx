@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Check, ChevronDown, Feather, List, LoaderCircle, PanelLeftClose, PenLine, Square, X } from 'lucide-react'
 import Room from './Room'
-import BookJourney, { type Journey } from './BookJourney'
+import type { Journey } from './RoomScene'
 import { BOOK_TITLE, SOURCE_CARD_HTML, conversationSections, mockReply, sections, type Message } from './content'
 import { isHttpUrl, pageForPosition, pageForSection, paginate, safeMarkdown, shouldSend, stoppedManuscript, turnPage, type BookPage, type ReadingPosition } from './book'
 
@@ -41,9 +41,9 @@ export default function App() {
   const notesFollow = useRef(true)
   const notesScrollTop = useRef(0)
   const shelfRef = useRef<HTMLButtonElement>(null)
-  const deskRef = useRef<HTMLDivElement>(null)
-  const spreadRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const turnDirection = useRef(0)
+  const turnAnimation = useRef<Animation | null>(null)
   const hasPickedUp = useRef(false)
   const composition = useRef(false)
   const streamJob = useRef<{ full: string; text: string; id: string; timer: ReturnType<typeof setInterval> } | null>(null)
@@ -91,15 +91,14 @@ export default function App() {
     hasPickedUp.current = true
     setNotice('')
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setOpened(true)
-    else setJourney({ direction: 'out', origin: shelfRef.current.getBoundingClientRect() })
+    else setJourney({ direction: 'out' })
   }, [journey, opened])
 
   const closeBook = useCallback(() => {
     if (journey || !opened) return
-    const origin = spreadRef.current?.getBoundingClientRect() || document.querySelector('.workspace')!.getBoundingClientRect()
     setDirectory(false)
     setOpened(false)
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) setJourney({ direction: 'back', origin })
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) setJourney({ direction: 'back' })
   }, [journey, opened])
   const revealReader = useCallback(() => setOpened(true), [])
   const finishJourney = useCallback(() => setJourney(null), [])
@@ -147,6 +146,7 @@ export default function App() {
   const flip = useCallback((direction: number) => {
     setPageIndex(index => {
       const next = turnPage(index, direction, pages.length, single)
+      if (next !== index) turnDirection.current = direction
       const page = pages[next]?.kind === 'blank' ? pages[next + 1] : pages[next]
       currentAnchor.current = { sectionId: page?.sectionId || 'cover', offset: page?.offset || 0 }
       return next
@@ -181,8 +181,27 @@ export default function App() {
   }, [messages, mode, opened])
 
   useLayoutEffect(() => {
-    if (mode === 'book' && workspaceRef.current) workspaceRef.current.scrollTop = 0
+    const workspace = workspaceRef.current
+    if (mode !== 'book' || !workspace) return
+    workspace.scrollTop = 0
+    const direction = turnDirection.current
+    turnDirection.current = 0
+    turnAnimation.current?.cancel()
+    if (!direction || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const leaves = [...workspace.querySelectorAll<HTMLElement>('.paper:not(.blank-paper)')]
+    const leaf = direction > 0 ? leaves.at(-1) : leaves[0]
+    if (leaf) turnAnimation.current = leaf.animate([
+      { transform: `perspective(1200px) rotateY(${direction > 0 ? -32 : 32}deg)`, opacity: .35, transformOrigin: leaf.classList.contains('recto') ? 'left center' : 'right center' },
+      { transform: 'perspective(1200px) rotateY(0deg)', opacity: 1, transformOrigin: leaf.classList.contains('recto') ? 'left center' : 'right center' },
+    ], { duration: 360, easing: 'cubic-bezier(.2,.6,.2,1)' })
   }, [pageIndex, mode])
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => { if (query.matches) turnAnimation.current?.cancel() }
+    query.addEventListener('change', update)
+    return () => { query.removeEventListener('change', update); turnAnimation.current?.cancel() }
+  }, [])
 
   const bind = useCallback((stopped = false) => {
     const job = streamJob.current
@@ -245,17 +264,16 @@ export default function App() {
 
   return <div className={`app ${opened ? 'reading' : 'in-room'} ${journey ? 'in-transit' : ''}`}  onClick={handleLink}>
     <header className="app-header"><a className="brand" href="#" onClick={event => { event.preventDefault(); closeBook() }} aria-label="回到书房"><span className="brand-symbol"><BookOpen size={22} strokeWidth={1.4} /></span><strong>书房<span>Chat</span></strong><i /><small>把思绪写成书</small></a><div className="header-right"><span className="simulation"><i /> 本地模拟 · 无需联网</span><span className="version">PROTOTYPE 01</span></div></header>
-    <div className="room-layer" inert={opened || !!journey} aria-hidden={opened || !!journey}><Room onOpen={openBook} bookAway={opened || !!journey} shelfRef={shelfRef} deskRef={deskRef} /></div>
+    <div className="room-layer" inert={opened || !!journey} aria-hidden={opened || !!journey}><Room onOpen={openBook} bookAway={opened || !!journey} shelfRef={shelfRef} journey={journey} onReveal={revealReader} onFinish={finishJourney} /></div>
     {opened && <div className="reader-surface" inert={!!journey}>
       <div className="reader-toolbar"><div className="book-identity"><button className="icon-button back-room" ref={closeRef} onClick={closeBook} aria-label="合上书，放回书架"><PanelLeftClose size={18} /></button><div><strong>{BOOK_TITLE}</strong><span>书房文库 / 001 <i /> {messages.length ? `${Math.ceil(messages.length / 2)} 轮对话` : '一本可以继续写下去的书'}</span></div></div><div className="view-switch" aria-label="阅读模式"><button className={mode === 'book' ? 'active' : ''} onClick={() => setMode('book')}><BookOpen size={15} />书页</button><button className={mode === 'notes' ? 'active' : ''} onClick={() => setMode('notes')}><PenLine size={15} />速记</button></div><button className="text-button contents-button" onClick={() => setDirectory(true)}><List size={16} />目录<span>{totalPages} 页</span></button></div>
       <main className="workspace" ref={workspaceRef}>
-        {mode === 'book' ? <div className="book-stage"><div className="spread" ref={spreadRef} key={single ? 'single' : 'double'}>{renderPage(pages[pageIndex], pageIndex)}{!single && renderPage(pages[pageIndex + 1], pageIndex + 1)}<div className="book-ribbon" /></div><div className="pagination"><button className="icon-button" onClick={() => flip(-1)} disabled={pageIndex === 0} aria-label="上一页"><ArrowLeft size={17} /></button><span>{pageLabel} <i>/</i> 共 {totalPages} 页</span><button className="icon-button" onClick={() => flip(1)} disabled={pageIndex + (single ? 1 : 2) >= pages.length} aria-label="下一页"><ArrowRight size={17} /></button></div><div className="reading-hint">{notice ? <><Check size={13} />{notice}</> : <>翻过一页，给思考一点时间。<span>← → 翻页</span></>}</div></div> : <section className="notes-view" ref={notesRef} onScroll={event => { const node = event.currentTarget; notesFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32; notesScrollTop.current = node.scrollTop }}><div className="notes-heading"><span className="chapter-kicker">FIELD NOTES</span><h1>让想法，先流动起来。</h1><p>不必整理，不必成章。这里的每一笔，也会留在书中。</p></div>{messages.length === 0 ? <div className="notes-empty"><Feather size={32} strokeWidth={1} /><h2>这一页，还没有写下什么。</h2><p>从下方写一个问题，让对话开始。</p><button className="text-button" onClick={() => { setDraft('如何给每天的思考留一点空白？'); textareaRef.current?.focus() }}>试试：如何给每天的思考留一点空白？ ↗</button></div> : messages.map(message => <article className={`note-entry ${message.role}`} key={message.id}><div className="note-label">{message.role === 'user' ? '你 / 提问' : '书房 / 模拟回应'}<button onClick={() => jump(message.id)} aria-label="在书页中阅读">在书页中阅读 ↗</button></div><div className="prose" dangerouslySetInnerHTML={{ __html: safeMarkdown(message.content) }} />{message.role === 'assistant' && <SourceCard />}</article>)}{stream !== null && <div className="notes-writing"><LoaderCircle className="spinning" size={14} /> 正在手稿纸上书写…</div>}</section>}
+        {mode === 'book' ? <div className="book-stage"><div className="spread" key={single ? 'single' : 'double'}>{renderPage(pages[pageIndex], pageIndex)}{!single && renderPage(pages[pageIndex + 1], pageIndex + 1)}<div className="book-ribbon" /></div><div className="pagination"><button className="icon-button" onClick={() => flip(-1)} disabled={pageIndex === 0} aria-label="上一页"><ArrowLeft size={17} /></button><span>{pageLabel} <i>/</i> 共 {totalPages} 页</span><button className="icon-button" onClick={() => flip(1)} disabled={pageIndex + (single ? 1 : 2) >= pages.length} aria-label="下一页"><ArrowRight size={17} /></button></div><div className="reading-hint">{notice ? <><Check size={13} />{notice}</> : <>翻过一页，给思考一点时间。<span>← → 翻页</span></>}</div></div> : <section className="notes-view" ref={notesRef} onScroll={event => { const node = event.currentTarget; notesFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32; notesScrollTop.current = node.scrollTop }}><div className="notes-heading"><span className="chapter-kicker">FIELD NOTES</span><h1>让想法，先流动起来。</h1><p>不必整理，不必成章。这里的每一笔，也会留在书中。</p></div>{messages.length === 0 ? <div className="notes-empty"><Feather size={32} strokeWidth={1} /><h2>这一页，还没有写下什么。</h2><p>从下方写一个问题，让对话开始。</p><button className="text-button" onClick={() => { setDraft('如何给每天的思考留一点空白？'); textareaRef.current?.focus() }}>试试：如何给每天的思考留一点空白？ ↗</button></div> : messages.map(message => <article className={`note-entry ${message.role}`} key={message.id}><div className="note-label">{message.role === 'user' ? '你 / 提问' : '书房 / 模拟回应'}<button onClick={() => jump(message.id)} aria-label="在书页中阅读">在书页中阅读 ↗</button></div><div className="prose" dangerouslySetInnerHTML={{ __html: safeMarkdown(message.content) }} />{message.role === 'assistant' && <SourceCard />}</article>)}{stream !== null && <div className="notes-writing"><LoaderCircle className="spinning" size={14} /> 正在手稿纸上书写…</div>}</section>}
       </main>
       <div className="composer-wrap" ref={composerRef}><div className="composer"><div className="composer-top"><Feather size={18} strokeWidth={1.4} /><textarea ref={textareaRef} value={draft} rows={1} placeholder="此刻，你在想什么？" aria-label="写下你的问题" onChange={event => setDraft(event.target.value)} onCompositionStart={() => { composition.current = true }} onCompositionEnd={() => { composition.current = false }} onKeyDown={event => { if (shouldSend({ key: event.key, shiftKey: event.shiftKey, isComposing: composition.current || event.nativeEvent.isComposing, keyCode: event.nativeEvent.keyCode })) { event.preventDefault(); send() } }} /><button className="send-button" onClick={send} disabled={!draft.trim() || stream !== null} aria-label="发送问题"><ArrowUp size={19} /></button></div><div className="composer-bottom"><div className="model-controls"><label><span className="model-dot" /><select aria-label="示例模型（模拟）" value={model} onChange={event => setModel(event.target.value)}><option>书房 · 沉思</option><option>书房 · 轻语</option></select><ChevronDown size={11} /></label><i /><label><select aria-label="推理强度（模拟）" value={effort} onChange={event => setEffort(event.target.value)}><option>标准推理</option><option>深入推理</option><option>轻量推理</option></select><ChevronDown size={11} /></label><span className="mock-badge">模拟</span></div><span className="keyboard-hint">Enter 发送 <i>·</i> Shift + Enter 换行</span></div></div><div className="composer-footnote"><span>每轮对话，都是书里新的一页。</span><span>仅当前窗口保存 · 刷新后重置</span></div></div>
-      {directory && <div className="drawer-overlay" onClick={() => setDirectory(false)}><aside className="directory-drawer" role="dialog" aria-modal="true" aria-label="全书目录" onClick={event => { event.stopPropagation(); void handleLink(event) }} onKeyDown={event => { if (event.key === 'Escape') setDirectory(false) }}><header><div><span className="chapter-kicker">YOUR BOOK</span><h2>沿着书页，回来。</h2></div><button autoFocus className="icon-button" onClick={() => setDirectory(false)} aria-label="关闭目录"><X size={19} /></button></header><p>{BOOK_TITLE} <span>共 {totalPages} 页</span></p><button className="cover-jump" onClick={() => jump('cover')}>封面 <ArrowUp size={13} /></button>{toc()}<SourceCard /><footer>页码随窗口排版计算，入口始终留在原处。</footer></aside></div>}
+      {directory && <div className="drawer-overlay" onClick={() => setDirectory(false)}><aside className="directory-drawer" role="dialog" aria-modal="true" aria-label="全书目录" onClick={event => { event.stopPropagation(); void handleLink(event) }} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDirectory(false) } }}><header><div><span className="chapter-kicker">YOUR BOOK</span><h2>沿着书页，回来。</h2></div><button autoFocus className="icon-button" onClick={() => setDirectory(false)} aria-label="关闭目录"><X size={19} /></button></header><p>{BOOK_TITLE} <span>共 {totalPages} 页</span></p><button className="cover-jump" onClick={() => jump('cover')}>封面 <ArrowUp size={13} /></button>{toc()}<SourceCard /><footer>页码随窗口排版计算，入口始终留在原处。</footer></aside></div>}
       {stream !== null && <aside className="manuscript" style={{ bottom: composerHeight + 12, height: `min(420px, calc(100dvh - ${composerHeight + 155}px))` }} aria-label="正在生成的手稿纸"><div className="manuscript-header"><div><span className="ink-dot" /><strong>正在落笔</strong><small>手稿纸 / 尚未装订</small></div><button onClick={() => bind(true)}><Square size={11} />停笔</button></div><div className="manuscript-scroll prose" ref={manuscriptRef} onScroll={event => { const node = event.currentTarget; manuscriptFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32 }} tabIndex={0}><div dangerouslySetInnerHTML={{ __html: safeMarkdown(stream, true) }} /><span className="ink-cursor" /></div><div className="manuscript-footer"><Feather size={12} /> 模拟生成中，完成后自动装订进书页</div></aside>}
     </div>}
-    {journey && <BookJourney journey={journey} shelf={shelfRef} desk={deskRef} reader={spreadRef} onReveal={revealReader} onFinish={finishJourney} />}
     {linkError && <div className="toast" role="alert">{linkError}<button onClick={() => setLinkError('')}>关闭</button></div>}
     <div className="prose pagination-probe" ref={probeRef} aria-hidden="true" />
     <span className="sr-only" aria-live="polite">{notice}</span>
