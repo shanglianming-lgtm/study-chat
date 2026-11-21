@@ -20,6 +20,12 @@ describe('safe manuscript rendering', () => {
     element.innerHTML = safeMarkdown('[书房](https://example.com/a(b))\n\n[来源](https://example.com/书房\n"Title")')
     expect([...element.querySelectorAll('a')].map(anchor => anchor.getAttribute('href'))).toEqual(['https://example.com/a(b)', 'https://example.com/%E4%B9%A6%E6%88%BF'])
   })
+  it('does not autolink a URL-valued label inside an unfinished explicit destination', () => {
+    const element = document.createElement('div')
+    element.innerHTML = safeMarkdown(stoppedManuscript('[https://example.com](https://exampl'))
+    expect(element.querySelector('a[href]')).toBeNull()
+    expect(element.textContent).toContain('https://example.com (https://exampl)')
+  })
   it('does not reinterpret incomplete link syntax inside code', () => {
     for (const source of ['`[书房](https://exampl`', '```text\n[书房](https://exampl\n```']) {
       const element = document.createElement('div')

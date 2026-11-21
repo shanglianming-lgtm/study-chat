@@ -84,6 +84,7 @@ export function safeMarkdown(markdown: string, streaming = false): string {
   })
   const template = document.createElement('template')
   template.innerHTML = html
+  template.content.querySelectorAll('.incomplete-link a').forEach(anchor => anchor.replaceWith(...Array.from(anchor.childNodes)))
   template.content.querySelectorAll('pre').forEach(pre => { if (!pre.textContent?.trim()) pre.remove() })
   // Sanitizing an unsupported HTML container can leave bare text or inline
   // nodes at the root. Normalize those into blocks so pagination cannot skip it.
