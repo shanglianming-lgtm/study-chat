@@ -29,21 +29,22 @@ export function isHttpUrl(url: string): boolean {
   try { return ['http:', 'https:'].includes(new URL(url).protocol) } catch { return false }
 }
 
-// Preserve inline markup (including links and code) across a text-node boundary.
+// Trim a deep clone instead of Range.cloneContents, which loses ancestors when
+// both boundaries are inside the same text node (e.g. a link-only paragraph).
 export function sliceElement(element: Element, start: number, end: number): string {
-  const clone = element.cloneNode(false) as Element
-  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-  const range = document.createRange()
-  let offset = 0, node: Node | null, started = false
+  const clone = element.cloneNode(true) as Element
+  const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT)
+  let offset = 0, node: Node | null
   while ((node = walker.nextNode())) {
-    const length = node.textContent?.length || 0
-    if (!started && start <= offset + length) { range.setStart(node, Math.max(0, start - offset)); started = true }
-    if (started && end <= offset + length) { range.setEnd(node, Math.max(0, end - offset)); break }
+    const text = node.textContent || ''
+    const length = text.length
+    node.textContent = text.slice(Math.max(0, start - offset), Math.max(0, end - offset))
     offset += length
   }
-  if (!started) return ''
-  if (!node) range.setEndAfter(element.lastChild || element)
-  clone.append(range.cloneContents())
+  // Empty list items would otherwise leave phantom bullets in later fragments.
+  Array.from(clone.querySelectorAll('*')).reverse().forEach(child => {
+    if (!child.textContent && !child.matches('br,hr') && !child.querySelector('br,hr')) child.remove()
+  })
   if (start) clone.classList.add('continued')
   return clone.outerHTML
 }

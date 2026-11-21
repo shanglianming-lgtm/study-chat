@@ -60,6 +60,11 @@ describe('DOM pagination', () => {
     element.innerHTML = '一二<a href="https://example.com">三四五六</a>七八'
     expect(sliceElement(element, 3, 7)).toBe('<p class="continued"><a href="https://example.com">四五六</a>七</p>')
   })
+  it('preserves ancestors when a fragment stays inside one linked text node', () => {
+    const element = document.createElement('p')
+    element.innerHTML = '<a href="https://example.com"><strong>一二三四五六七八</strong></a>'
+    expect(sliceElement(element, 2, 5)).toBe('<p class="continued"><a href="https://example.com"><strong>三四五</strong></a></p>')
+  })
   it('preserves code characters and whitespace across fragments', () => {
     const element = document.createElement('pre')
     element.innerHTML = '<code>let a = 1;\n  let b = 2;</code>'
