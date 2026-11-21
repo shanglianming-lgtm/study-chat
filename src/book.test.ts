@@ -90,6 +90,14 @@ describe('DOM pagination', () => {
     const pages = paginate([{ id: 'cover', title: '', kind: 'cover', markdown: '' }, { id: 'a', title: 'A', markdown: '正文' }, { id: 'b', title: 'B', markdown: '另一章' }], probe, 400)
     expect(pages.map(page => page.sectionId)).toEqual(['cover', 'a', 'b'])
   })
+  it('retains top-level text left behind by sanitized HTML containers', () => {
+    const probe = document.createElement('div')
+    const pages = paginate([{ id: 'html', title: 'HTML', markdown: '<div>hello <strong>there</strong></div>' }], probe, 400)
+    const result = document.createElement('div')
+    result.innerHTML = pages.map(page => page.html).join('')
+    expect(result.textContent).toContain('hello there')
+    expect(result.querySelector('strong')?.textContent).toBe('there')
+  })
   it('the mock is deterministic and identifies itself as simulated', () => {
     expect(mockReply('问题', '模型', '强度')).toBe(mockReply('问题', '模型', '强度'))
     expect(mockReply('问题', '模型', '强度')).toContain('并未调用真实模型')

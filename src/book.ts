@@ -19,6 +19,16 @@ export function safeMarkdown(markdown: string, streaming = false): string {
   })
   const template = document.createElement('template')
   template.innerHTML = html
+  // Sanitizing an unsupported HTML container can leave bare text or inline
+  // nodes at the root. Normalize those into blocks so pagination cannot skip it.
+  let paragraph: HTMLParagraphElement | null = null
+  for (const node of Array.from(template.content.childNodes)) {
+    const inline = node.nodeType === Node.TEXT_NODE || (node instanceof Element && node.matches('a,strong,em,code,del,br'))
+    if (!inline) { paragraph = null; continue }
+    if (!paragraph && !node.textContent?.trim() && node.nodeType === Node.TEXT_NODE) continue
+    if (!paragraph) { paragraph = document.createElement('p'); template.content.insertBefore(paragraph, node) }
+    paragraph.append(node)
+  }
   template.content.querySelectorAll('a').forEach(anchor => {
     if (!isHttpUrl(anchor.getAttribute('href') || '')) anchor.removeAttribute('href')
   })
