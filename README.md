@@ -72,7 +72,7 @@ Windows Server 2022 / WebView2 157 / Microsoft Pinyin 测试已确认：清理 R
 
 这些 Windows 结果来自三维书房加入之前的版本；原取还书动效的减少动态效果设置已验证。新的三维场景和翻页动效仍需 Windows 复验。
 
-**已知 Windows 问题**：测试机器上的微软拼音候选框会出现在屏幕左上角，而非输入框旁。与 [WebView2 上游候选框定位问题](https://github.com/MicrosoftEdge/WebView2Feedback/issues/5675)症状相符，但尚未确认本应用的具体触发条件；不能视为已修复。输入组合事件的防误发与候选框位置是两项不同的验证。
+**已知 Windows / WebView2 限制（未修复）**：测试机器上的微软拼音候选框从启动起出现在屏幕左上角，拖动或首次调整窗口大小均不能恢复；与 [WebView2 上游候选框定位问题](https://github.com/MicrosoftEdge/WebView2Feedback/issues/5675)同类。**已实测的恢复方法：先按 Alt+Tab 切到其他应用，再切回书房 Chat。** 此后候选框回到输入光标旁，最大化、还原和再次调整大小后仍正常。这个恢复方法不等于应用已修复原生 IME 问题；输入组合事件防误发与候选框位置是两项不同的验证。
 
 以下项目**尚未完成 Windows 真机验收**：
 
