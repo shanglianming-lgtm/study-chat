@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@fontsource/noto-sans-sc':
+        specifier: 5.2.5
+        version: 5.2.5
       '@fontsource/noto-serif-sc':
         specifier: 5.2.5
         version: 5.2.5
@@ -332,6 +335,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fontsource/noto-sans-sc@5.2.5':
+    resolution: {integrity: sha512-rYAl3Alcjo2PnI0sqzRfnA022H8yWePNrjYalApQwYE+fFlaXmD6Mm3E9wmJCpmJM8clwhQWq/E8IlPl1bmZHQ==}
 
   '@fontsource/noto-serif-sc@5.2.5':
     resolution: {integrity: sha512-YJZyDJahealMD9RwAR6HZb0ZXysGyZJa1Tyump8dvS5/RYdMFTyLW/+TXDJ3uAQ7loWB2XG6E2GuiJclPOrF5A==}
@@ -1293,6 +1299,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.12':
     optional: true
+
+  '@fontsource/noto-sans-sc@5.2.5': {}
 
   '@fontsource/noto-serif-sc@5.2.5': {}
 

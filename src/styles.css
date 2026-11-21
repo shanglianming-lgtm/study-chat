@@ -13,7 +13,7 @@
 
 /* Measuring and visible pages share typography; no geometry changes by role. */
 .paper-body.user{padding-left:0;border-left:0}
-.prose.user{font-family:Inter,"Microsoft YaHei",sans-serif;color:#7a806d}
+.prose.user{font-family:Inter,"Microsoft YaHei","Noto Sans SC",sans-serif;color:#7a806d}
 .prose.user p{text-indent:1.5em}
 .cover-paper .paper-body{margin-top:24px}
 @media(min-height:900px) and (min-width:860px){.cover-paper .paper-body{margin-top:32px}}
@@ -24,3 +24,4 @@
 @keyframes take-book{from{opacity:0;transform:translate(25vw,-18vh) scale(.12,.48) rotate(8deg)}40%{opacity:1}to{opacity:1;transform:none}}
 @keyframes return-book{to{opacity:0;transform:translate(25vw,-18vh) scale(.12,.48) rotate(8deg)}}
 @media(prefers-reduced-motion:reduce){.spread,.closing-book .spread{animation:none!important}}
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","Noto Sans SC",sans-serif}
