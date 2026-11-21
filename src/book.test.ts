@@ -4,6 +4,30 @@ import { isHttpUrl, pageForPosition, pageForSection, paginate, processRecordHtml
 import { conversationSections, mockReply } from './content'
 
 describe('safe manuscript rendering', () => {
+  it('prints interrupted explicit links without actionable cut-off destinations or raw wrappers', () => {
+    const element = document.createElement('div')
+    element.innerHTML = safeMarkdown(stoppedManuscript('前文 [书房](https://exampl'))
+    expect(element.querySelector('a[href]')).toBeNull()
+    expect(element.textContent).toContain('书房 (https://exampl)')
+    expect(element.textContent).not.toContain('[书房](')
+    expect(element.textContent).toContain('本轮已停笔。')
+    element.innerHTML = safeMarkdown('[书房](https://example.com/途中\n\n已经写下的后文。')
+    expect(element.querySelector('a[href]')).toBeNull()
+    expect(element.textContent).toContain('已经写下的后文。')
+  })
+  it('keeps complete nested-parenthesis and multiline destinations exact', () => {
+    const element = document.createElement('div')
+    element.innerHTML = safeMarkdown('[书房](https://example.com/a(b))\n\n[来源](https://example.com/书房\n"Title")')
+    expect([...element.querySelectorAll('a')].map(anchor => anchor.getAttribute('href'))).toEqual(['https://example.com/a(b)', 'https://example.com/%E4%B9%A6%E6%88%BF'])
+  })
+  it('does not reinterpret incomplete link syntax inside code', () => {
+    for (const source of ['`[书房](https://exampl`', '```text\n[书房](https://exampl\n```']) {
+      const element = document.createElement('div')
+      element.innerHTML = safeMarkdown(source)
+      expect(element.querySelector('code')?.textContent).toContain('[书房](https://exampl')
+      expect(element.querySelector('.incomplete-link')).toBeNull()
+    }
+  })
   it('binds unfinished inline emphasis and code as printed text rather than raw delimiters', () => {
     for (const [source, selector, expected] of [['- **允许答案变', 'strong', '允许答案变'], ['留一点 *空间', 'p em', '空间'], ['代码 `partial', 'p code', 'partial']]) {
       const element = document.createElement('div')

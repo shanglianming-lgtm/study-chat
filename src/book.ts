@@ -1,11 +1,35 @@
 import DOMPurify from 'dompurify'
-import { marked, Renderer } from 'marked'
+import { Lexer, Marked, Renderer } from 'marked'
 import { parse as parseDomain } from 'tldts'
 import remend from 'remend'
 import { SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
 
 export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; live?: boolean; tocStart?: number; tocEnd?: number; offset?: number; number?: number; folio?: string }
 export type ReadingPosition = { sectionId: string; offset: number }
+
+// Consume only this broken inline link, never following paragraphs. Until a
+// destination closes, its printed URL is text rather than a guessed target.
+const manuscriptParser = new Marked({ extensions: [{
+  name: 'unfinishedLink', level: 'inline',
+  start: source => source.indexOf('['),
+  tokenizer(source) {
+    const opening = source.match(/^\[([\s\S]*?)\]\(/)
+    if (!opening || Lexer.lexInline(source)[0]?.type === 'link') return
+    const end = source.indexOf('\n', opening[0].length)
+    const raw = source.slice(0, end < 0 ? undefined : end)
+    let depth = 1
+    for (let i = opening[0].length; i < raw.length; i++) {
+      if (raw[i] === '\\') { i++; continue }
+      if (raw[i] === '(') depth++
+      if (raw[i] === ')' && --depth === 0) return
+    }
+    return { type: 'unfinishedLink', raw, tokens: this.lexer.inlineTokens(opening[1]), destination: raw.slice(opening[0].length) }
+  },
+  renderer(token) {
+    const destination = String(token.destination).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `<span class="incomplete-link">${this.parser.parseInline(token.tokens || [])}${destination ? ` (${destination})` : ''}</span>`
+  },
+}] })
 
 export function romanFolio(value: number): string {
   let result = ''
@@ -54,8 +78,8 @@ export function safeMarkdown(markdown: string, streaming = false): string {
     const suffix = token.raw.slice(end).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     return renderLink.call(this, { ...token, href: clean, text: clean, tokens: [{ type: 'text', raw: clean, text: clean }] }) + suffix
   }
-  const html = DOMPurify.sanitize(marked.parse(markdown, { async: false, renderer }) as string, {
-    ALLOWED_TAGS: ['p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'blockquote', 'ul', 'ol', 'li', 'pre', 'code', 'a', 'hr', 'del'],
+  const html = DOMPurify.sanitize(manuscriptParser.parse(markdown, { async: false, renderer }) as string, {
+    ALLOWED_TAGS: ['p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'blockquote', 'ul', 'ol', 'li', 'pre', 'code', 'a', 'hr', 'del', 'span'],
     ALLOWED_ATTR: ['href', 'title', 'class', 'start'],
   })
   const template = document.createElement('template')
@@ -65,7 +89,7 @@ export function safeMarkdown(markdown: string, streaming = false): string {
   // nodes at the root. Normalize those into blocks so pagination cannot skip it.
   let paragraph: HTMLParagraphElement | null = null
   for (const node of Array.from(template.content.childNodes)) {
-    const inline = node.nodeType === Node.TEXT_NODE || (node instanceof Element && node.matches('a,strong,em,code,del,br'))
+    const inline = node.nodeType === Node.TEXT_NODE || (node instanceof Element && node.matches('a,strong,em,code,del,br,span'))
     if (!inline) { paragraph = null; continue }
     if (!paragraph && !node.textContent?.trim() && node.nodeType === Node.TEXT_NODE) continue
     if (!paragraph) { paragraph = document.createElement('p'); template.content.insertBefore(paragraph, node) }
