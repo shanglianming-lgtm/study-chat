@@ -162,6 +162,19 @@ describe('DOM pagination', () => {
     result.innerHTML = sliceElement(element, 1, 2)
     expect(result.querySelector('ol')?.start).toBe(1)
   })
+  it('marks only a split item continuation, not the following genuine list item', () => {
+    for (const tag of ['ul', 'ol']) {
+      const element = document.createElement(tag)
+      element.innerHTML = '<li>一二三四</li><li>五六</li>'
+      const result = document.createElement('div')
+      result.innerHTML = sliceElement(element, 2, 6)
+      expect(result.querySelector('li')?.classList.contains('continued-item')).toBe(true)
+      expect(result.querySelectorAll('li')[1].classList.contains('continued-item')).toBe(false)
+      expect(result.textContent).toBe('三四五六')
+      result.innerHTML = sliceElement(element, 4, 6)
+      expect(result.querySelector('li')?.classList.contains('continued-item')).toBe(false)
+    }
+  })
   it('measures the demo source card as part of its section and keeps the explicit link', () => {
     const probe = document.createElement('div')
     const pages = paginate([{ id: 'source', title: '来源', source: true, markdown: '正文' }], probe, 400)

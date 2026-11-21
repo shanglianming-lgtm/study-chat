@@ -296,6 +296,8 @@ export default function App() {
   const tocItems = allSections.filter(section => section.id !== 'cover' && section.id !== 'contents')
   const totalPages = pages.length
   const visibleFolios = pages.slice(pageIndex, pageIndex + (single ? 1 : 2)).flatMap(page => page.folio ? [page.folio] : [])
+  const visibleIndexes = single ? [pageIndex] : [pageIndex, pageIndex + 1]
+  const stopPageIndex = visibleIndexes.filter(index => pages[index]?.live).at(-1) ?? visibleIndexes.at(-1)
   const toc = (page?: BookPage) => <div className="toc-list compact">{tocItems.slice(page?.tocStart ?? 0, page?.tocEnd).map(section => <button key={section.id} onClick={() => jump(section.id)}><span>{section.title}</span><i /><b>{pages[pageForSection(pages, section.id)]?.folio || '—'}</b></button>)}</div>
   const composer = () => <div className="in-page-composer">
     <h6>Conversation {String(Math.floor(messages.length / 2) + 1).padStart(2, '0')} · 提问</h6>
@@ -309,7 +311,7 @@ export default function App() {
     <div className={`paper-body prose ${page?.role || ''}`} ref={index === pageIndex ? bodyRef : undefined}>
       {page?.kind === 'blank' ? null : page?.kind === 'toc' ? <><span className="chapter-kicker">CONTENTS</span><h1>Contents{page.tocStart ? ' (cont.)' : ''}</h1>{toc(page)}</> : page?.kind === 'writing' ? <div className="writing-leaf"><span className="chapter-kicker">AN OPEN LEAF</span><h1>The next thought</h1>{composer()}</div> : page?.kind === 'live' ? liveReply() : page?.kind ? <BookFrontMatter kind={page.kind} metadata={metadata} change={changeMetadata} model={model} setModel={setModel} effort={effort} setEffort={setEffort} /> : page ? <div dangerouslySetInnerHTML={{ __html: page.html }} /> : null}
     </div>
-    <footer className="page-footer"><span>{page?.folio || ''}</span>{writing && (single || index === pageIndex + 1) ? <button className="paper-stop" onClick={() => bind(true)}><Square size={10} />停笔并装订</button> : <i />}</footer>
+    <footer className="page-footer"><span>{page?.folio || ''}</span>{writing && index === stopPageIndex ? <button className="paper-stop" onClick={() => bind(true)}><Square size={10} />停笔并装订</button> : <i />}</footer>
     <button className={`page-corner ${index % 2 || single ? 'next-corner' : 'previous-corner'}`} aria-label={index % 2 || single ? '翻起右页' : '翻起左页'} onClick={() => flip(index % 2 || single ? 1 : -1)} disabled={turning || (index % 2 || single ? pageIndex + (single ? 1 : 2) >= pages.length : pageIndex === 0)} />
   </article>
   const thickness = { '--left-stack': `${Math.min(25, 3 + pageIndex * .55)}px`, '--right-stack': `${Math.min(25, 3 + Math.max(0, pages.length - pageIndex - (single ? 1 : 2)) * .55)}px` } as CSSProperties

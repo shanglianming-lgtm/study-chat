@@ -97,11 +97,13 @@ export function sliceElement(element: Element, start: number, end: number): stri
     Array.from(list.children).forEach((item, index) => listNumbers.set(item, first + index))
   }
   const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
+  const itemStarts = new Map<Element, number>()
   const nodes: Node[] = []
   while (walker.nextNode()) nodes.push(walker.currentNode)
   let offset = 0
   for (const node of nodes) {
     if (node instanceof Element) {
+      if (node.tagName === 'LI') itemStarts.set(node, offset)
       if (node.tagName === 'BR') {
         // Hard breaks consume a position just like a character. Keeping every
         // break in every fragment makes even one-character fragments overflow.
@@ -122,6 +124,10 @@ export function sliceElement(element: Element, start: number, end: number): stri
   for (const list of orderedLists) {
     const first = list.firstElementChild
     if (first) list.setAttribute('start', String(listNumbers.get(first) ?? 1))
+  }
+  for (const list of [...(clone.matches('ul,ol') ? [clone] : []), ...clone.querySelectorAll('ul,ol')]) {
+    const first = list.firstElementChild
+    if (first && (itemStarts.get(first) ?? start) < start) first.classList.add('continued-item')
   }
   if (start) clone.classList.add('continued')
   return clone.outerHTML
