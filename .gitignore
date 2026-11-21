@@ -1,6 +1,7 @@
 node_modules/
 dist/
 target/
+src-tauri/gen/
 *.tsbuildinfo
 .DS_Store
 *.local

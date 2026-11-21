@@ -65,12 +65,14 @@ Vitest 覆盖 Markdown 消毒、未闭合围栏、HTTP(S) 校验、IME 发送规
 
 GitHub Actions 运行前端类型、测试和构建检查。仓库没有预提交钩子。
 
-## 未在 Windows 真机验证
+## Windows 验证范围
 
-开发与浏览器验收环境为 Linux，以下项目**未在 Windows 真机实测**：
+Windows 测试已确认：在安装 Visual Studio 2022 MSVC / Windows SDK 的机器上，清理 Rust 构建产物后，`pnpm tauri dev` 可以完成编译并打开独立窗口。仓库包含所需 ICO；开发时生成的 `src-tauri/gen/` schema 不需要提交。
 
-- MSVC / Windows SDK / WebView2 安装与首次 Rust 原生编译。
-- `pnpm tauri dev` 的 Windows 独立窗口、DPI / 缩放和窗口尺寸变化。
+以下项目**尚未完成 Windows 真机验收**：
+
+- 从零安装 MSVC / Windows SDK / WebView2 的完整流程。
+- DPI / 缩放和窗口尺寸变化。
 - Windows 系统默认浏览器的 opener 实际唤起。
 - Windows 中文输入法（微软拼音等）的真实候选确认行为；已覆盖浏览器组合输入事件规则。
 - Windows 系统「动画效果」设置到 WebView2 减少动态效果媒体查询的映射。
