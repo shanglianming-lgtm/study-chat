@@ -43,9 +43,20 @@ export function isHttpUrl(url: string): boolean {
 // both boundaries are inside the same text node (e.g. a link-only paragraph).
 export function sliceElement(element: Element, start: number, end: number): string {
   const clone = element.cloneNode(true) as Element
-  const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT)
-  let offset = 0, node: Node | null
-  while ((node = walker.nextNode())) {
+  const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
+  const nodes: Node[] = []
+  while (walker.nextNode()) nodes.push(walker.currentNode)
+  let offset = 0
+  for (const node of nodes) {
+    if (node instanceof Element) {
+      if (node.tagName === 'BR') {
+        // Hard breaks consume a position just like a character. Keeping every
+        // break in every fragment makes even one-character fragments overflow.
+        if (offset < start || offset >= end) node.remove()
+        offset += 1
+      }
+      continue
+    }
     const text = node.textContent || ''
     const length = text.length
     node.textContent = text.slice(Math.max(0, start - offset), Math.max(0, end - offset))
@@ -57,6 +68,10 @@ export function sliceElement(element: Element, start: number, end: number): stri
   })
   if (start) clone.classList.add('continued')
   return clone.outerHTML
+}
+
+function fragmentLength(element: Element): number {
+  return (element.textContent?.length || 0) + element.querySelectorAll('br').length
 }
 
 export function paginate(sections: Section[], probe: HTMLElement, height: number): BookPage[] {
@@ -74,7 +89,7 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
       // Avoid orphan headings at the foot of the preceding page.
       if (/^H[1-6]$/.test(block.tagName) && current) { pages.push(page(current)); current = '' }
       let start = 0
-      const total = block.textContent?.length || 0
+      const total = fragmentLength(block)
       if (!total) continue
       while (start < total) {
         const rest = sliceElement(block, start, total)

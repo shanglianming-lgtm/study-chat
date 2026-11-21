@@ -72,6 +72,20 @@ describe('DOM pagination', () => {
     container.innerHTML = sliceElement(element, 0, 8) + sliceElement(element, 8, element.textContent!.length)
     expect(container.textContent).toBe(element.textContent)
   })
+  it('counts and slices hard breaks instead of repeating every break per page', () => {
+    const element = document.createElement('p')
+    element.innerHTML = '一<br>二<br>三<br>四'
+    expect(sliceElement(element, 2, 5)).toBe('<p class="continued">二<br>三</p>')
+    const probe = document.createElement('div')
+    Object.defineProperty(probe, 'scrollHeight', { get() { return (probe.querySelectorAll('br').length + 1) * 20 } })
+    const input = '一  \n二  \n三  \n四  \n五  \n六'
+    const pages = paginate([{ id: 'breaks', title: '换行', markdown: input }], probe, 60)
+    expect(pages.length).toBeLessThanOrEqual(3)
+    expect(pages.every(page => { probe.innerHTML = page.html; return probe.scrollHeight <= 61 })).toBe(true)
+    const joined = document.createElement('div')
+    joined.innerHTML = pages.map(page => page.html).join('')
+    expect(joined.textContent?.replace(/\s/g, '')).toBe('一二三四五六')
+  })
   it('uses measured capacity, does not lose text, and reflows to more pages', () => {
     const probe = document.createElement('div')
     Object.defineProperty(probe, 'scrollHeight', { get() { return Math.ceil((probe.textContent?.length || 0) / 10) * 20 } })
