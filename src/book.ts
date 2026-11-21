@@ -84,7 +84,9 @@ export function isHttpUrl(url: string): boolean {
 export function stoppedManuscript(markdown: string): string {
   const fences = [...markdown.matchAll(/^\s*(`{3,}|~{3,})/gm)]
   const close = fences.length % 2 ? `\n${fences.at(-1)![1]}` : ''
-  const bound = remend(markdown + close, { linkMode: 'text-only', images: false, katex: false, comparisonOperators: false, htmlTags: false, setextHeadings: false, singleTilde: false })
+  // Only complete inline styles: link repair can mistake malformed quoted
+  // input for an interrupted destination and discard already-written paragraphs.
+  const bound = remend(markdown + close, { links: false, images: false, katex: false, comparisonOperators: false, htmlTags: false, setextHeadings: false, singleTilde: false })
   return `${bound}\n\n*本轮已停笔。*`
 }
 

@@ -15,12 +15,18 @@ describe('safe manuscript rendering', () => {
     element.innerHTML = safeMarkdown(stoppedManuscript('```ts\nconst literal = "**not formatting"\n```'))
     expect(element.querySelector('pre code')?.textContent).toBe('const literal = "**not formatting"\n')
   })
-  it('does not turn a stopped incomplete destination into an actionable partial URL', () => {
+  it('preserves later generated paragraphs when quoted input contains an unfinished link', () => {
+    const reply = mockReply('来源 [中文来源](https://exampl', '模型', '强度')
+    const partial = reply.slice(0, reply.indexOf('可以试试这样的记录方式：')) + '- **允许答案变'
+    const bound = stoppedManuscript(partial)
+    expect(bound).toContain('来源 [中文来源](https://exampl')
+    expect(bound).toContain('给这个念头一点空间')
     const element = document.createElement('div')
-    element.innerHTML = safeMarkdown(stoppedManuscript('来源 [中文来源](https://exampl'))
+    element.innerHTML = safeMarkdown(bound)
     expect(element.textContent).toContain('中文来源')
-    expect(element.textContent).not.toContain('[中文来源](')
-    expect(element.querySelector('a[href]')).toBeNull()
+    expect(element.textContent).toContain('允许答案变')
+    expect(element.querySelector('strong')?.textContent).toBe('先描述，再判断。')
+    expect(element.querySelectorAll('strong')[3]?.textContent).toBe('允许答案变')
   })
   it('binds a stop notice outside an unfinished code fence without losing partial code', () => {
     const element = document.createElement('div')
