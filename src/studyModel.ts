@@ -6,7 +6,7 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 
 type Point = [number, number, number]
 /** Entirely local geometry/textures. Coordinates are meters, Y is up. */
-export function buildStudy() {
+export function buildStudy(software = false) {
   const scene = new THREE.Scene()
   scene.background = new THREE.Color('#d7c8ae')
   scene.fog = new THREE.Fog('#dfd0b5', 12, 25)
@@ -83,10 +83,13 @@ export function buildStudy() {
   }).map
   for (const map of [oak, weave, plaster]) { map.wrapS = map.wrapT = THREE.RepeatWrapping }
   const wood = '#ba8e5c', darkWood = '#977147', linen = '#dfcdb0'
-  scene.add(new THREE.HemisphereLight('#edf2f3', '#d0c8b9', .38))
-  RectAreaLightUniformsLib.init()
-  const windowLight = new THREE.RectAreaLight('#f4f5ef', .9, 2.8, 2.05)
-  windowLight.position.set(2.15, 2.05, -3.28); windowLight.lookAt(2.15, 2.05, 0); scene.add(windowLight)
+  scene.add(new THREE.HemisphereLight('#edf2f3', '#d0c8b9', software ? .56 : .38))
+  // Avoid LTC integration on CPU renderers; sun, lamps and baked grounding stay.
+  if (!software) {
+    RectAreaLightUniformsLib.init()
+    const windowLight = new THREE.RectAreaLight('#f4f5ef', .9, 2.8, 2.05)
+    windowLight.position.set(2.15, 2.05, -3.28); windowLight.lookAt(2.15, 2.05, 0); scene.add(windowLight)
+  }
   const sun = new THREE.DirectionalLight('#fff7e5', 3.5); sun.position.set(4.5, 5.2, -7); sun.target.position.set(-.6, 0, .8); sun.castShadow = true
   sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: .5, far: 22 }); sun.shadow.normalBias = .015; sun.shadow.intensity = .85; scene.add(sun, sun.target)
   // Enclosed human-scale room, not an orbitable cutaway diorama.
@@ -385,7 +388,7 @@ export function buildStudy() {
   const spineUV = spineGeometry.getAttribute('uv'); for (let i = 0; i < spineUV.count; i++) spineUV.setY(i, 1 - spineUV.getY(i))
   const spineFace = new THREE.Mesh(spineGeometry, new THREE.MeshStandardMaterial({ map: spine.map, side: THREE.DoubleSide })); book.add(spineFace)
   batchStudy(scene, book, [sofa, glass])
-  const assets = loadStudyAssets({ scene, sofa, glass, floor: floorMat, wood: [...materials].filter(([c]) => woods.has(c)).map(([, m]) => m), fabric: [...materials].filter(([c]) => fabrics.has(c)).map(([, m]) => m), textures })
+  const assets = loadStudyAssets({ scene, sofa, glass, floor: floorMat, software, wood: [...materials].filter(([c]) => woods.has(c)).map(([, m]) => m), fabric: [...materials].filter(([c]) => fabrics.has(c)).map(([, m]) => m), textures })
   return { scene, book, lid, ready: assets.ready, repaint: () => { title.repaint(); spine.repaint(); bookLabels.repaint() }, dispose: () => {
     assets.dispose()
     scene.traverse(o => { if (o instanceof THREE.Mesh) { if (o instanceof THREE.InstancedMesh) o.dispose(); o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()) } }); textures.forEach(t => t.dispose()); sun.shadow.map?.dispose()

@@ -26,8 +26,10 @@ export default function RoomScene(props: Props) {
     // Reading repaints HTML over a cached room, often without another GL frame.
     // Retain its color buffer for software/composited WebView repaint paths.
     try { renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'low-power' }) } catch { fallback(); return }
-    const { scene, book, lid, ready, repaint, dispose } = buildStudy()
-    const canvas = renderer.domElement; canvas.tabIndex = 0; canvas.setAttribute('aria-label', '第一人称书房：WASD 行走，鼠标转头，E 交互，Esc 暂停')
+    const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info')
+    const software = !!debug && /swiftshader|llvmpipe|softpipe|software|basic render driver|warp/i.test(String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)))
+    const { scene, book, lid, ready, repaint, dispose } = buildStudy(software)
+    const canvas = renderer.domElement; canvas.dataset.renderMode = software ? 'software' : 'full'; canvas.tabIndex = 0; canvas.setAttribute('aria-label', '第一人称书房：WASD 行走，鼠标转头，E 交互，Esc 暂停')
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
     // Room furniture/lights are static. Only moving the world book invalidates shadows.
     renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true
