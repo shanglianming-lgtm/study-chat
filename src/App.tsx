@@ -90,15 +90,14 @@ export default function App() {
     if (journey || opened || !shelfRef.current) return
     hasPickedUp.current = true
     setNotice('')
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setOpened(true)
-    else setJourney({ direction: 'out' })
+    setJourney({ direction: 'out' })
   }, [journey, opened])
 
   const closeBook = useCallback(() => {
     if (journey || !opened) return
     setDirectory(false)
     setOpened(false)
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) setJourney({ direction: 'back' })
+    setJourney({ direction: 'back' })
   }, [journey, opened])
   const revealReader = useCallback(() => setOpened(true), [])
   const finishJourney = useCallback(() => setJourney(null), [])
@@ -266,7 +265,7 @@ export default function App() {
     <header className="app-header"><a className="brand" href="#" onClick={event => { event.preventDefault(); closeBook() }} aria-label="回到书房"><span className="brand-symbol"><BookOpen size={22} strokeWidth={1.4} /></span><strong>书房<span>Chat</span></strong><i /><small>把思绪写成书</small></a><div className="header-right"><span className="simulation"><i /> 本地模拟 · 无需联网</span><span className="version">PROTOTYPE 01</span></div></header>
     <div className="room-layer" inert={opened || !!journey} aria-hidden={opened || !!journey}><Room onOpen={openBook} bookAway={opened || !!journey} shelfRef={shelfRef} journey={journey} onReveal={revealReader} onFinish={finishJourney} /></div>
     {opened && <div className="reader-surface" inert={!!journey}>
-      <div className="reader-toolbar"><div className="book-identity"><button className="icon-button back-room" ref={closeRef} onClick={closeBook} aria-label="合上书，放回书架"><PanelLeftClose size={18} /></button><div><strong>{BOOK_TITLE}</strong><span>书房文库 / 001 <i /> {messages.length ? `${Math.ceil(messages.length / 2)} 轮对话` : '一本可以继续写下去的书'}</span></div></div><div className="view-switch" aria-label="阅读模式"><button className={mode === 'book' ? 'active' : ''} onClick={() => setMode('book')}><BookOpen size={15} />书页</button><button className={mode === 'notes' ? 'active' : ''} onClick={() => setMode('notes')}><PenLine size={15} />速记</button></div><button className="text-button contents-button" onClick={() => setDirectory(true)}><List size={16} />目录<span>{totalPages} 页</span></button></div>
+      <div className="reader-toolbar"><div className="book-identity"><button className="icon-button back-room" ref={closeRef} onClick={closeBook} aria-label="合上书，起身"><PanelLeftClose size={18} /></button><div><strong>{BOOK_TITLE}</strong><span>书房文库 / 001 <i /> {messages.length ? `${Math.ceil(messages.length / 2)} 轮对话` : '一本可以继续写下去的书'}</span></div></div><div className="view-switch" aria-label="阅读模式"><button className={mode === 'book' ? 'active' : ''} onClick={() => setMode('book')}><BookOpen size={15} />书页</button><button className={mode === 'notes' ? 'active' : ''} onClick={() => setMode('notes')}><PenLine size={15} />速记</button></div><button className="text-button contents-button" onClick={() => setDirectory(true)}><List size={16} />目录<span>{totalPages} 页</span></button></div>
       <main className="workspace" ref={workspaceRef}>
         {mode === 'book' ? <div className="book-stage"><div className="spread" key={single ? 'single' : 'double'}>{renderPage(pages[pageIndex], pageIndex)}{!single && renderPage(pages[pageIndex + 1], pageIndex + 1)}<div className="book-ribbon" /></div><div className="pagination"><button className="icon-button" onClick={() => flip(-1)} disabled={pageIndex === 0} aria-label="上一页"><ArrowLeft size={17} /></button><span>{pageLabel} <i>/</i> 共 {totalPages} 页</span><button className="icon-button" onClick={() => flip(1)} disabled={pageIndex + (single ? 1 : 2) >= pages.length} aria-label="下一页"><ArrowRight size={17} /></button></div><div className="reading-hint">{notice ? <><Check size={13} />{notice}</> : <>翻过一页，给思考一点时间。<span>← → 翻页</span></>}</div></div> : <section className="notes-view" ref={notesRef} onScroll={event => { const node = event.currentTarget; notesFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32; notesScrollTop.current = node.scrollTop }}><div className="notes-heading"><span className="chapter-kicker">FIELD NOTES</span><h1>让想法，先流动起来。</h1><p>不必整理，不必成章。这里的每一笔，也会留在书中。</p></div>{messages.length === 0 ? <div className="notes-empty"><Feather size={32} strokeWidth={1} /><h2>这一页，还没有写下什么。</h2><p>从下方写一个问题，让对话开始。</p><button className="text-button" onClick={() => { setDraft('如何给每天的思考留一点空白？'); textareaRef.current?.focus() }}>试试：如何给每天的思考留一点空白？ ↗</button></div> : messages.map(message => <article className={`note-entry ${message.role}`} key={message.id}><div className="note-label">{message.role === 'user' ? '你 / 提问' : '书房 / 模拟回应'}<button onClick={() => jump(message.id)} aria-label="在书页中阅读">在书页中阅读 ↗</button></div><div className="prose" dangerouslySetInnerHTML={{ __html: safeMarkdown(message.content) }} />{message.role === 'assistant' && <SourceCard />}</article>)}{stream !== null && <div className="notes-writing"><LoaderCircle className="spinning" size={14} /> 正在手稿纸上书写…</div>}</section>}
       </main>
