@@ -125,14 +125,18 @@ export default function RoomScene(props: Props) {
         if (t === 1) { carrying = motion.kind === 'take'; if (carrying) heldScene.add(book); renderer.shadowMap.needsUpdate = true; motion = null; emit() }
       } else if (active) {
         const t = reduced.matches ? 1 : ease((now - started) / 1450), out = active.direction === 'out'
-        camera.position.lerpVectors(fromCamera, out ? new THREE.Vector3(2.15, 1.35, -1.25) : standPosition, t)
+        camera.position.lerpVectors(fromCamera, out ? new THREE.Vector3(2.15, 1.6, -1.25) : standPosition, t)
         const deskYaw = fromYaw - THREE.MathUtils.euclideanModulo(fromYaw + Math.PI, Math.PI * 2) + Math.PI
         yaw = THREE.MathUtils.lerp(fromYaw, out ? deskYaw : standYaw, t); pitch = THREE.MathUtils.lerp(fromPitch, out ? -.43 : standPitch, t); updateCamera(); updateHand()
         book.position.lerpVectors(fromBook, out ? deskPosition : handPosition, Math.min(1, t * 1.5)); book.quaternion.slerpQuaternions(fromRotation, out ? deskRotation : handRotation, Math.min(1, t * 1.5)); lid.rotation.y = -Math.PI * (out ? ease((t - .4) / .6) : 1 - ease(t / .6)); dirty = true
         if (t === 1) { const direction = active.direction; active = null; if (direction === 'out') latest.current.onReveal(); else { reading = false; paused = false; carrying = true; heldScene.add(book); lid.rotation.y = 0; recapture = true }; renderer.shadowMap.needsUpdate = true; latest.current.onFinish(); emit() }
       } else if (!reading) { book.position.copy(carrying ? handPosition : shelfPosition); book.quaternion.copy(carrying ? handRotation : shelfRotation); lid.rotation.y = 0 }
+      // The readable HTML leaves take over the desk book, not the whole room.
+      // Keep the seated camera and the real window, lamp and desktop rendered.
+      const showBook = !reading || !!state.journey
+      if (book.visible !== showBook) { book.visible = showBook; renderer.shadowMap.needsUpdate = true; dirty = true }
       if (now - lastHUD > 120) { emit(); lastHUD = now }
-      if ((!state.bookAway || state.journey) && dirty) {
+      if (dirty) {
         const near = target(), prompt = latest.current.interactionRef.current
         if (near && prompt) {
           projected.copy(near === 'shelf' ? shelfPosition : deskAnchor).project(camera)

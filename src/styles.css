@@ -144,7 +144,7 @@ body{min-width:0}
 .walk-interaction.anchored:after{content:"";position:absolute;left:calc(50% - 3px);top:-23px;width:6px;height:6px;border:1px solid #f1deb1;border-radius:50%;background:#536447}
 .walk-interaction.anchored p{white-space:normal;margin:0 0 8px;font-size:10px}
 .walk-interaction.anchored button{width:100%;justify-content:center;padding:10px 13px}
-.walk-recapture{position:absolute;top:20%;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;max-width:calc(100% - 32px);width:310px;padding:13px 18px;background:#f1e6c8;color:#303a29;border:1px solid #fff3d6;border-radius:8px;box-shadow:0 6px 24px #201d1555;font:12px/1.5 var(--sans);z-index:3}
+.walk-recapture{position:absolute;top:20%;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;max-width:calc(100% - 32px);width:310px;padding:13px 18px;background:#f1e6c8;color:#303a29;border:1px solid #fff3d6;border-radius:8px;box-shadow:0 6px 24px #201d1555;font-size:12px;line-height:1.5;z-index:3}
 .walk-recapture span{flex-basis:100%;font-size:10px;color:#5b624f}
 .walk-shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(#241e161c,transparent 25%,transparent 60%,#201b1680)}
 .walk-location{position:absolute;right:36px;top:31px;text-align:right;pointer-events:none;display:flex;flex-direction:column;gap:8px;text-shadow:0 1px 8px #30251988}
@@ -167,3 +167,39 @@ body{min-width:0}
 @media(max-width:700px){.in-room .app-header{height:65px;padding:0 19px}.in-room .brand small,.in-room .brand>i{display:none}.walk-location{top:25px;right:20px}.walk-location small{display:none}.walk-location>span{font-size:9px;letter-spacing:1px}.walk-objective{left:20px;top:92px}.walk-objective strong{font-size:12px}.walk-objective small{font-size:8px}.walk-interaction{bottom:60px}.walk-interaction p{font-size:10px;white-space:normal}.walk-bottom{left:20px;right:20px;bottom:18px}.walk-bottom>span{font-size:8px;gap:4px}.walk-bottom i{margin:0 2px}.walk-welcome{padding:85px 25px}.walk-welcome h1{font-size:29px;letter-spacing:1px}.walk-welcome p{font-size:12px}.walk-welcome small{font-size:8px}.walk-pad{right:15px;bottom:144px}}
 @media(pointer:coarse),(max-width:570px){.walk-pad{display:grid;left:15px;right:auto;bottom:65px;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(3,32px)}.walk-interaction{left:auto;right:13px;bottom:73px;transform:none;max-width:calc(100% - 140px);width:190px}.walk-interaction p{font-size:9px;margin-bottom:8px}.walk-interaction button{padding:10px 11px;font-size:10px;gap:8px}.walk-bottom>span{display:none}.walk-bottom{justify-content:flex-end}.walk-objective{top:88px}}
 @media(max-height:500px){.walk-welcome{padding-top:65px;padding-bottom:25px}.walk-welcome h1{font-size:26px;margin:10px 0}.walk-welcome p{font-size:11px;margin:0 0 13px;line-height:1.8}.walk-welcome small{margin-top:12px;font-size:8px}.walk-objective{top:84px}.walk-objective strong{font-size:11px}.walk-interaction{bottom:48px}.walk-pad{bottom:54px}.walk-location{top:24px}.walk-bottom{bottom:13px}}
+
+/* Seated reading stays in the same rendered room. Only the book and writing
+   paper are HTML, so small Chinese text and native inputs remain usable. */
+.app.reading{background:transparent}
+.reading .room-layer{position:fixed;inset:0;visibility:visible;overflow:visible}
+.at-desk>:not(.walk-canvas){visibility:hidden;pointer-events:none}
+.reading .app-header{position:fixed;inset:0 0 auto;height:78px;padding:0 40px;background:linear-gradient(#211b1655,transparent);border:0;color:#f2e7d2;pointer-events:none}
+.reading .brand{pointer-events:auto;color:inherit}.reading .brand-symbol{background:#e7dfc01a;color:#e9dfc3;border:1px solid #e9dfc044}.reading .brand small{color:#ece2cc99}.reading .header-right{display:none}
+.reading .reader-surface{position:fixed;inset:clamp(105px,16vh,170px) 0 12px;width:min(980px,80vw);margin-inline:auto;z-index:2;animation:desk-settle .3s ease both}
+.desk-caption{position:fixed;top:30px;right:36px;display:flex;flex-direction:column;align-items:flex-end;gap:7px;color:#fff0ce;text-shadow:0 2px 12px #241b16;pointer-events:none}
+.desk-caption span{font:8px Georgia,serif;letter-spacing:3px;opacity:.7}.desk-caption strong{font:400 11px var(--serif);letter-spacing:2px}
+.reading .reader-toolbar{height:48px;min-height:48px;padding:0 14px;margin-bottom:13px;border:1px solid #e9d8b63d;border-radius:7px;background:#292d25e6;color:#f5ead2;box-shadow:0 3px 16px #211b1633;align-items:center;flex-wrap:nowrap}
+.reading .book-identity{gap:10px}.reading .book-identity strong{font-size:11px}.reading .book-identity span{color:#e8d9b6a6;font-size:7px}
+.reading .back-room{border-color:#e8d9b64d;color:#f5ead2}.reading .back-room:hover{background:#707b5a}
+.reading .view-switch{background:#151a1433;border-color:#e0d5b133}.reading .view-switch button{color:#e8d9b6a6}.reading .view-switch button.active{color:#46553d;background:#f2e8d0}
+.reading .contents-button{color:#f5ead2}.reading .contents-button span{color:#e8d9b699}
+.reading .workspace{padding:7px 9px 4px;overflow-x:hidden}
+.reading .book-stage{min-height:410px;perspective:1800px}
+.reading .spread{min-height:330px;transform:rotateX(5deg);transform-origin:center bottom;border-bottom:7px solid #c6b99b;box-shadow:0 16px 32px #211b1666,0 3px 5px #211b164d}
+.reading .spread:before{inset:-4px -7px -10px;background:#43503a;border:1px solid #909571;border-radius:5px 8px 8px 5px}
+.reading .paper.verso{background:linear-gradient(90deg,#fff9e9 84%,#e8ddc2)}
+.reading .paper.recto{background:linear-gradient(90deg,#e6dbc1,#fff9e9 12%)}
+.reading .pagination{height:29px;margin-top:17px;background:#2b3027e8;border:1px solid #e2d3af3d;border-radius:20px;padding:0 8px;box-shadow:0 3px 12px #211b1633}
+.reading .pagination>span,.reading .pagination .icon-button{color:#f0e2c4}.reading .pagination .icon-button:hover:not(:disabled){background:#687558}
+.reading .reading-hint,.reading .reading-hint span{color:#f1e5cad9;text-shadow:0 1px 8px #211b16}
+.reading .composer-wrap{width:min(760px,100%);padding:10px 0 2px}
+.reading .composer{border-radius:5px;background:#f9f1dfeF;border-color:#e4d5b5;box-shadow:0 7px 22px #211b164d,inset 0 1px #fff9e9}
+.reading .composer-footnote{color:#f2e5c9c9;text-shadow:0 1px 7px #211b16}
+.reading .notes-view{width:min(760px,100%);background:#fff8e7;border:1px solid #d7c9a8;border-radius:3px;padding:25px 35px 35px;box-shadow:0 12px 30px #211b1655,inset 5px 0 #e9ddc0}
+.reading .manuscript{border-radius:3px;box-shadow:0 10px 35px #211b1655}
+@keyframes desk-settle{from{opacity:0}to{opacity:1}}
+@media(max-width:1050px){.reading .reader-surface{width:86vw;top:100px}.reading .book-identity>div>span{display:none}.reading .book-identity strong{font-size:10px}}
+@media(max-width:700px){.reading .reader-surface{inset:100px 0 10px;width:calc(100% - 34px)}.reading .app-header{height:65px;padding:0 19px}.reading .brand small,.reading .brand>i{display:none}.desk-caption{right:20px;top:25px}.desk-caption strong{font-size:8px;letter-spacing:1px}.desk-caption span{font-size:6px;letter-spacing:2px}.reading .reader-toolbar{padding:0 8px;height:44px;min-height:44px;margin-bottom:9px}.reading .book-identity>div{display:none}.reading .view-switch button{padding:6px 13px}.reading .contents-button{font-size:9px}.reading .contents-button span{display:none}.reading .workspace{padding:7px 5px 3px}.reading .notes-view{padding:20px 21px 25px}.reading .book-stage{min-height:360px}.reading .spread{min-height:285px;transform:rotateX(3deg)}.reading .composer-wrap{padding-top:8px}.reading .composer-footnote span:last-child{display:none}}
+@media(max-height:600px){.reading .reader-surface{inset:64px 0 8px;width:84vw}.reading .reader-toolbar{height:36px;min-height:36px;margin-bottom:5px}.reading .book-identity>div>span{display:none}.reading .book-stage{min-height:310px}.reading .spread{min-height:245px}.reading .running-head{height:30px}.reading .page-footer{height:28px}.reading .paper-body{margin-top:14px}.reading .composer-wrap{padding-top:6px}.reading .composer-top{padding:7px 10px 1px}.reading .composer-bottom{padding-bottom:7px}.reading .composer-footnote,.reading .reading-hint{display:none}.reading .pagination{margin-top:12px}.desk-caption{top:20px}.reading .notes-view{padding-top:15px}}
+@media(max-width:570px) and (min-height:601px){.reading .reader-surface{width:calc(100% - 30px)}.reading .reader-toolbar .view-switch{top:auto;bottom:auto;left:50%;transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.reading .reader-surface{animation:none}.reading .spread{transform:none}}
