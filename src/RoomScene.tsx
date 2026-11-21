@@ -39,7 +39,7 @@ export default function RoomScene(props: Props) {
     renderer.autoClear = false
     let yaw = .1, pitch = -.05, entered = false, paused = false, carrying = false, reading = false, disposed = false, dirty = true
     let wantsCapture = true, recapture = false
-    let renderScale = 1, lastRenderedAt = 0, frameAverage = 16.7, renderSamples = 0
+    let renderScale = 1, lastRenderedAt = 0, frameAverage = 16.7, renderSamples = 0, renderedPreviousFrame = false
     const keys = new Set<string>(), reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
     const shelfPosition = new THREE.Vector3(-1.53, 1.61, -3.0), deskPosition = new THREE.Vector3(2.15, .99, -2.58)
     const shelfRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), deskRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
@@ -97,6 +97,7 @@ export default function RoomScene(props: Props) {
     const animate = (now: number) => {
       if (disposed || unavailable.current) return
       frame = requestAnimationFrame(animate)
+      const consecutiveRender = renderedPreviousFrame; renderedPreviousFrame = false
       // At 15–20 FPS, a 40ms cap made walking slower. 100ms still keeps a step
       // below the padded collision bodies' width, without speeding up after blur.
       const dt = Math.min(.1, Math.max(0, (now - lastTime) / 1000)); lastTime = now
@@ -152,14 +153,17 @@ export default function RoomScene(props: Props) {
         // Reduce only the 3D framebuffer on sustained slow rendering; HTML text,
         // HUD and reader stay at native resolution. No GPU-performance promise.
         const interval = now - lastRenderedAt
-        if (lastRenderedAt && interval < 180) { frameAverage += (interval - frameAverage) * .15; renderSamples++ }
+        // A long active frame is overload, not an idle gap. The old <180ms
+        // cutoff kept resetting adaptation precisely on the slowest machines.
+        if (lastRenderedAt && consecutiveRender) { frameAverage += (Math.min(interval, 1000) - frameAverage) * .2; renderSamples++ }
         else { frameAverage = 16.7; renderSamples = 0 }
-        if (renderSamples >= 20 && frameAverage > 40 && renderScale > .65) {
+        if (renderSamples >= 8 && frameAverage > 40 && renderScale > .65) {
           renderScale = Math.max(.65, renderScale * .85); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * renderScale); renderSamples = 0; frameAverage = 16.7
         }
         lastRenderedAt = now
         renderer.clear(); renderer.render(scene, camera)
         if (book.parent === heldScene) { renderer.clearDepth(); renderer.render(heldScene, camera) }
+        renderedPreviousFrame = true
         dirty = false
       }
     }; frame = requestAnimationFrame(animate)
