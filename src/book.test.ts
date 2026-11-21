@@ -4,6 +4,21 @@ import { isHttpUrl, pageForPosition, pageForSection, paginate, processRecordHtml
 import { conversationSections, mockReply } from './content'
 
 describe('safe manuscript rendering', () => {
+  it('keeps preceding shortcut, collapsed and full references outside unfinished inline links', () => {
+    for (const reference of ['[来源]', '[来源][]', '[已定义来源][来源]']) {
+      const element = document.createElement('div')
+      element.innerHTML = safeMarkdown(`${reference} 后面有 [书房](https://exampl\n\n[来源]: https://example.com/original`)
+      expect(element.querySelector('a')?.getAttribute('href')).toBe('https://example.com/original')
+      expect(element.querySelector('.incomplete-link')?.textContent).toBe('书房 (https://exampl)')
+    }
+  })
+  it('does not consume a reference together with incomplete syntax belonging to code', () => {
+    const element = document.createElement('div')
+    element.innerHTML = safeMarkdown('[来源] 后面是 `[书房](https://exampl`\n\n[来源]: https://example.com/original')
+    expect(element.querySelector('a')?.getAttribute('href')).toBe('https://example.com/original')
+    expect(element.querySelector('code')?.textContent).toBe('[书房](https://exampl')
+    expect(element.querySelector('.incomplete-link')).toBeNull()
+  })
   it('prints interrupted explicit links without actionable cut-off destinations or raw wrappers', () => {
     const element = document.createElement('div')
     element.innerHTML = safeMarkdown(stoppedManuscript('前文 [书房](https://exampl'))

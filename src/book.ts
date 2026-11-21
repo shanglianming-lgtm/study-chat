@@ -13,17 +13,26 @@ const manuscriptParser = new Marked({ extensions: [{
   name: 'unfinishedLink', level: 'inline',
   start: source => source.indexOf('['),
   tokenizer(source) {
-    const opening = source.match(/^\[([\s\S]*?)\]\(/)
-    if (!opening || Lexer.lexInline(source)[0]?.type === 'link') return
-    const end = source.indexOf('\n', opening[0].length)
+    if (source[0] !== '[') return
+    let labelDepth = 1
+    let labelEnd = -1
+    for (let i = 1; i < source.length; i++) {
+      if (source[i] === '\\') { i++; continue }
+      if (source[i] === '[') labelDepth++
+      if (source[i] === ']' && --labelDepth === 0) { labelEnd = i; break }
+    }
+    // A reference label must not be swallowed while searching for a later ](.
+    if (labelEnd < 0 || source[labelEnd + 1] !== '(' || Lexer.lexInline(source)[0]?.type === 'link') return
+    const destinationStart = labelEnd + 2
+    const end = source.indexOf('\n', destinationStart)
     const raw = source.slice(0, end < 0 ? undefined : end)
     let depth = 1
-    for (let i = opening[0].length; i < raw.length; i++) {
+    for (let i = destinationStart; i < raw.length; i++) {
       if (raw[i] === '\\') { i++; continue }
       if (raw[i] === '(') depth++
       if (raw[i] === ')' && --depth === 0) return
     }
-    return { type: 'unfinishedLink', raw, tokens: this.lexer.inlineTokens(opening[1]), destination: raw.slice(opening[0].length) }
+    return { type: 'unfinishedLink', raw, tokens: this.lexer.inlineTokens(source.slice(1, labelEnd)), destination: raw.slice(destinationStart) }
   },
   renderer(token) {
     const destination = String(token.destination).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
