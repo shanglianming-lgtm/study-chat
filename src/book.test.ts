@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { isHttpUrl, pageForSection, paginate, safeMarkdown, shouldSend, sliceElement, turnPage } from './book'
+import { isHttpUrl, pageForPosition, pageForSection, paginate, safeMarkdown, shouldSend, sliceElement, stoppedManuscript, turnPage } from './book'
 import { conversationSections, mockReply } from './content'
 
 describe('safe manuscript rendering', () => {
+  it('binds a stop notice outside an unfinished code fence without losing partial code', () => {
+    const element = document.createElement('div')
+    element.innerHTML = safeMarkdown(stoppedManuscript('前文\n\n```typescript\nconst reflection = {'))
+    expect(element.querySelector('pre code')?.textContent).toContain('const reflection = {')
+    expect(element.querySelector('pre')?.textContent).not.toContain('本轮已停笔')
+    expect(element.querySelector('p em')?.textContent).toBe('本轮已停笔。')
+  })
   it('renders paragraphs, lists, fenced code and HTTP links', () => {
     const html = safeMarkdown('一段正文\n\n- 列表\n\n```ts\nconst n = 1\n```\n\n[链接](https://example.com)')
     expect(html).toContain('<p>一段正文</p>')
@@ -55,6 +62,25 @@ describe('composition and page navigation', () => {
 })
 
 describe('DOM pagination', () => {
+  it('continues ordered-list numbering after removing earlier list items', () => {
+    const element = document.createElement('ol')
+    element.innerHTML = '<li>一</li><li>二</li><li>三</li><li>四</li>'
+    const result = document.createElement('div')
+    result.innerHTML = sliceElement(element, 3, 4)
+    expect(result.querySelector('ol')?.start).toBe(4)
+    expect(result.querySelector('li')?.textContent).toBe('四')
+    element.setAttribute('start', '5')
+    result.innerHTML = sliceElement(element, 2, 4)
+    expect(result.querySelector('ol')?.start).toBe(7)
+  })
+  it('measures the demo source card as part of its section and keeps the explicit link', () => {
+    const probe = document.createElement('div')
+    const pages = paginate([{ id: 'source', title: '来源', source: true, markdown: '正文' }], probe, 400)
+    const result = document.createElement('div')
+    result.innerHTML = pages.map(page => page.html).join('')
+    expect(result.querySelector('.source-card small')?.textContent).toBe('演示')
+    expect(result.querySelector('.source-icon')?.getAttribute('href')).toBe('https://example.com')
+  })
   it('preserves inline links when a paragraph spans pages', () => {
     const element = document.createElement('p')
     element.innerHTML = '一二<a href="https://example.com">三四五六</a>七八'
@@ -99,10 +125,40 @@ describe('DOM pagination', () => {
     expect(joined.textContent).toBe(text)
     expect(small.every(page => page.sectionId === 'long')).toBe(true)
   })
-  it('keeps special front matter and starts each chapter separately', () => {
+  it('leaves the cover unnumbered and starts recto chapters on odd right-hand folios', () => {
     const probe = document.createElement('div')
-    const pages = paginate([{ id: 'cover', title: '', kind: 'cover', markdown: '' }, { id: 'a', title: 'A', markdown: '正文' }, { id: 'b', title: 'B', markdown: '另一章' }], probe, 400)
-    expect(pages.map(page => page.sectionId)).toEqual(['cover', 'a', 'b'])
+    const pages = paginate([{ id: 'cover', title: '', kind: 'cover', markdown: '' }, { id: 'a', title: 'A', recto: true, markdown: '正文' }, { id: 'b', title: 'B', recto: true, markdown: '另一章' }], probe, 400)
+    expect(pages[1].kind).toBe('cover')
+    expect(pages[1].number).toBeUndefined()
+    for (const id of ['a', 'b']) {
+      const index = pageForSection(pages, id)
+      expect(index % 2).toBe(1)
+      expect(pages[index].number! % 2).toBe(1)
+    }
+    expect(pages[pageForSection(pages, 'a')].number).toBe(1)
+  })
+  it('keeps the same within-chapter text position when page capacity changes', () => {
+    const probe = document.createElement('div')
+    Object.defineProperty(probe, 'scrollHeight', { get() { return Math.ceil((probe.textContent?.length || 0) / 10) * 20 } })
+    const sections = [{ id: 'long', title: '长文', markdown: '阅读位置不能跳回章节开头。'.repeat(30) }]
+    const before = paginate(sections, probe, 100)
+    const position = { sectionId: 'long', offset: before[3].offset! }
+    const after = paginate(sections, probe, 60)
+    const index = pageForPosition(after, position)
+    expect(index).toBeGreaterThan(0)
+    expect(after[index].offset).toBeLessThanOrEqual(position.offset)
+    expect(after[index + 1].offset).toBeGreaterThan(position.offset)
+    expect(pageForPosition(before, position)).toBe(3)
+  })
+  it('keeps a short copyright ending with the preceding paragraph when they fit together', () => {
+    const probe = document.createElement('div')
+    Object.defineProperty(probe, 'scrollHeight', { get() {
+      return [...probe.children].reduce((height, block) => height + Math.ceil((block.textContent?.length || 0) / 10) * 20, 0)
+    } })
+    const previous = '排版与对话始终通过标识定位。'.repeat(2)
+    const pages = paginate([{ id: 'copyright', title: '版权', markdown: '前文'.repeat(40) + '\n\n' + previous + '\n\n© 2026 书房' }], probe, 200)
+    expect(pages.at(-1)?.html).toContain(previous)
+    expect(pages.at(-1)?.html).toContain('© 2026 书房')
   })
   it('retains top-level text left behind by sanitized HTML containers', () => {
     const probe = document.createElement('div')

@@ -28,3 +28,78 @@
 .prose code{font-family:"Cascadia Code",Consolas,"Noto Sans SC",monospace}
 .paper.verso{background:linear-gradient(90deg,#faf7ee 92%,#eee9dc)}
 .paper.recto{background:linear-gradient(90deg,#eee9dc,#faf7ee 8%)}
+
+/* Keep the physical room behind the book throughout pickup and return. */
+body{min-width:0}
+.app{min-height:0}
+.room-layer{position:relative;display:flex;flex:1;min-height:0}
+.room-layer>.room-view{width:100%}
+.reading .room-layer{position:absolute;inset:65px 0 0;visibility:hidden}
+.reading.in-transit .room-layer{visibility:visible}
+.reader-surface{display:flex;flex-direction:column;flex:1;min-height:0}
+.in-transit{pointer-events:none}
+.in-transit .reader-surface{visibility:hidden}
+.spine.book-away{visibility:hidden;transition:none}
+.spread{animation:none;transform:none}
+.book-transfer{position:fixed;left:0;top:0;width:120px;height:170px;z-index:40;transform-origin:0 0;pointer-events:none;filter:drop-shadow(4px 10px 10px #39412d40);perspective:1000px}
+.transfer-page,.transfer-cover,.transfer-inside{position:absolute;inset:0;border:2px solid #6e7f58;border-radius:2px 5px 5px 2px;padding:16px 11px;display:flex;flex-direction:column;background:#faf7ee;color:#58694a;font-family:var(--serif)}
+.transfer-page>span{font-size:11px;margin:6px 0 18px}
+.transfer-page i,.transfer-inside i{height:1px;background:#c5cbb7;margin-bottom:12px}
+.transfer-lid{position:absolute;inset:0;transform-origin:left center;transform-style:preserve-3d}
+.transfer-cover,.transfer-inside{backface-visibility:hidden}
+.transfer-cover{background:linear-gradient(90deg,#46543c,#657652 13%,#526343);color:#eee9d7;border-color:#7c8966;justify-content:space-between;box-shadow:inset 5px 0 #33432d55}
+.transfer-cover small,.transfer-cover>span{font-size:6px;letter-spacing:1px}
+.transfer-cover strong{font-size:18px;font-weight:400;line-height:1.9;letter-spacing:2px}
+.transfer-inside{transform:rotateY(180deg);border-radius:5px 2px 2px 5px}
+.transfer-inside small{font-size:8px;margin:8px 0 22px}
+
+/* Short windows scroll the paper, never the composer or the whole app. */
+.workspace{overflow-y:auto;overflow-x:hidden;padding-top:9px;padding-bottom:10px;scrollbar-width:thin;scrollbar-color:#bac3aa transparent}
+.book-stage{min-height:510px;flex-shrink:0}
+.spread{min-height:440px}
+.cover-paper .paper-body{container-type:size}
+.book-cover{min-height:0}
+.cover-art{flex:0 0 96px;max-height:none;width:140px;margin:12px 0 18px;align-self:flex-start;overflow:hidden}
+.cover-art i{width:56px;height:56px;left:37px;top:13px}
+.cover-art span{left:54px;top:22px}
+.cover-author{margin-top:auto;flex-shrink:0}
+.cover-bottom{flex-shrink:0}
+.blank-paper .running-head,.blank-paper .page-footer,.cover-paper .running-head{visibility:hidden}
+.cover-art i:nth-child(2){top:22px}
+.cover-art i:nth-child(3){top:31px}
+.directory-drawer{backdrop-filter:none}
+.drawer-overlay{backdrop-filter:none;background:#404b3440}
+@container (max-height:360px){
+  .book-cover{padding-top:0}
+  .book-cover .cover-title{font-size:27px!important;line-height:1.45}
+  .cover-edition{font-size:6px}
+  .cover-line{margin:10px 0}
+  .book-cover>p{font-size:7px;margin-top:8px!important}
+  .cover-art{flex-basis:69px;margin:6px 0;width:120px}
+  .cover-art i{width:40px;height:40px;left:31px;top:10px}
+  .cover-art span{font-size:18px;left:43px;top:14px}
+  .cover-art i:nth-child(2){top:17px}
+  .cover-art i:nth-child(3){top:24px}
+  .cover-author{font-size:8px;padding-top:4px}
+  .cover-bottom{font-size:6px;margin-top:8px;padding-top:7px}
+}
+@media (min-width:571px) and (max-width:859px){
+  .room-art{right:2%;width:60%;height:72%;top:10%;mask-image:none}
+  .room-intro{width:40%;margin-top:-35px}
+  .room-intro h1{font-size:27px;letter-spacing:1px}
+  .room-art .plant{right:4%}
+}
+@media (max-width:570px){
+  .app.in-room{height:auto;min-height:100dvh}
+  .room-layer{flex:1}
+  .room-view{display:flex;flex-direction:column;align-items:stretch}
+  .room-intro{width:100%;margin:0;padding:26px 27px 0}
+  .room-intro h1{font-size:clamp(26px,7.5vw,32px);letter-spacing:1px;line-height:1.6}
+  .room-intro h1 span{display:block}
+  .room-art{position:relative;flex:none;width:100%;height:300px;inset:auto;margin:22px 0 0;mask-image:none}
+  .room-art .plant{right:4%}
+  .room-art .shelf{right:10%}
+  .room-bottom{position:relative;inset:auto;margin:18px 27px 24px}
+  .workspace{padding-top:9px}
+  .reading .room-layer{inset:59px 0 0}
+}
