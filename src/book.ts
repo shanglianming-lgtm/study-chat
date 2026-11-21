@@ -115,7 +115,6 @@ export function sliceElement(element: Element, start: number, end: number): stri
     const first = list.firstElementChild
     if (first) list.setAttribute('start', String(listNumbers.get(first) ?? 1))
   }
-  if (clone.matches('pre') && !clone.textContent?.trim()) return ''
   if (start) clone.classList.add('continued')
   return clone.outerHTML
 }

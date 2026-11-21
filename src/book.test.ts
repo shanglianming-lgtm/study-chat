@@ -117,6 +117,15 @@ describe('DOM pagination', () => {
   it('does not bind an empty framed code block when stopped at an opening fence', () => {
     expect(safeMarkdown(stoppedManuscript('```typescript\n'))).not.toContain('<pre>')
   })
+  it('retains leading code indentation when the code frame cannot fit under prose', () => {
+    const probe = document.createElement('div')
+    Object.defineProperty(probe, 'scrollHeight', { get: () => Array.from(probe.children).reduce((sum, node) => sum + (node.tagName === 'PRE' ? 40 : 0) + (node.textContent?.length || 0), 0) })
+    const markdown = 'p'.repeat(25) + '\n\n```ts\n    const n = 1\n```'
+    const pages = paginate([{ id: 'code', title: 'Code', markdown }], probe, 50)
+    const result = document.createElement('div')
+    result.innerHTML = pages.map(page => page.html).join('')
+    expect([...result.querySelectorAll('pre')].map(pre => pre.textContent).join('')).toBe('    const n = 1\n')
+  })
   it('continues ordered-list numbering after removing earlier list items', () => {
     const element = document.createElement('ol')
     element.innerHTML = '<li>一</li><li>二</li><li>三</li><li>四</li>'
