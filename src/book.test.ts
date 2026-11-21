@@ -124,6 +124,16 @@ describe('DOM pagination', () => {
     expect(new URL(anchors[2].href).searchParams.get('q')).toBe('你好，世界')
     expect(decodeURI(anchors[3].getAttribute('href')!)).toBe('https://example.com/带”引号')
   })
+  it('separates Chinese full-stop prose without damaging recognized IDN separators or queries', () => {
+    const result = document.createElement('div')
+    result.innerHTML = safeMarkdown('见https://example.com。谢谢\n\n“https://www.例子。中国”\n\nhttps://example.com/?q=你好。谢谢\n\n[https://example.com。谢谢](https://example.com。谢谢)')
+    const anchors = [...result.querySelectorAll('a')]
+    expect(anchors[0].getAttribute('href')).toBe('https://example.com')
+    expect(result.textContent).toContain('https://example.com。谢谢')
+    expect(new URL(anchors[1].href).hostname).toBe(new URL('https://www.例子。中国').hostname)
+    expect(new URL(anchors[2].href).searchParams.get('q')).toBe('你好。谢谢')
+    expect(new URL(anchors[3].href).hostname).toBe(new URL('https://example.com。谢谢').hostname)
+  })
   it('does not bind an empty framed code block when stopped at an opening fence', () => {
     expect(safeMarkdown(stoppedManuscript('```typescript\n'))).not.toContain('<pre>')
   })

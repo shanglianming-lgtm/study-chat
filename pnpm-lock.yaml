@@ -38,6 +38,9 @@ importers:
       three:
         specifier: 0.180.0
         version: 0.180.0
+      tldts:
+        specifier: 6.1.86
+        version: 6.1.86
     devDependencies:
       '@tauri-apps/cli':
         specifier: ^2.5.0

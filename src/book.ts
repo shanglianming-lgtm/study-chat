@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import { marked, Renderer } from 'marked'
+import { parse as parseDomain } from 'tldts'
 import { SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
 
 export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; live?: boolean; tocStart?: number; tocEnd?: number; offset?: number; number?: number; folio?: string }
@@ -36,6 +37,16 @@ export function safeMarkdown(markdown: string, streaming = false): string {
     if (!/^https?:\/\//i.test(token.raw)) return renderLink.call(this, token)
     const authority = token.raw.match(/^https?:\/\/[^/?#]*/i)?.[0] || ''
     const boundaries = [token.raw.search(/[“”‘’「」『』《》〈〉【】〔〕]/u), authority.search(/[，！？；：、]/u)].filter(index => index >= 0)
+    // An ideographic stop can also be a legal IDN label separator. Preserve
+    // recognized complete domains; otherwise end prose after a valid host.
+    const host = token.raw.slice(0, boundaries.length ? Math.min(...boundaries) : undefined).match(/^https?:\/\/[^/?#]*/i)?.[0] || ''
+    const publicHost = (url: string) => {
+      try { const parsed = parseDomain(new URL(url).hostname); return parsed.isIcann && !!parsed.domain } catch { return false }
+    }
+    if (host.includes('。') && !publicHost(host)) {
+      const stop = [...host.matchAll(/。/gu)].find(match => publicHost(host.slice(0, match.index)))
+      if (stop) boundaries.push(stop.index!)
+    }
     if (!boundaries.length) return renderLink.call(this, token)
     const end = Math.min(...boundaries)
     const clean = token.raw.slice(0, end)
