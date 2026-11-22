@@ -11,9 +11,16 @@
 .physical-reading .paper-body{margin-top:22px;margin-bottom:0;overflow:hidden;min-height:0;flex:1;container-type:size}
 .physical-reading .running-head{height:37px;font:8px/1.3 Georgia,var(--serif);letter-spacing:.8px;border-color:#b9a98455;color:#8c7c5d;gap:10px}
 .physical-reading .running-head span:last-child{font-size:6px;flex-shrink:0}
-.physical-reading .page-footer{height:35px;color:#7b6a4b;font:11px Georgia,serif;justify-content:center;position:relative;flex-shrink:0}
+.physical-reading .page-footer{height:35px;color:#7b6a4b;font:11px Georgia,var(--serif);justify-content:center;position:relative;flex-shrink:0}
 .physical-reading .page-footer i{display:none}
+.physical-reading .page-footer.with-paper-actions{height:56px;padding-bottom:22px}
+.physical-reading .page-footer:has(.paper-actions){visibility:visible}
+.paper-actions{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-end;align-items:center;gap:6px;font:9px/1.4 var(--serif);letter-spacing:0}
+.paper-actions button{min-height:22px;padding:2px 5px;border:1px solid transparent;border-radius:2px;color:inherit;background:transparent}
+.paper-actions button:hover,.paper-actions button:focus-visible{background:#d2bc8c18;box-shadow:inset 0 2px 4px #6c53242b,inset 0 -1px #fff9e980;border-color:#b4a07933}
+.paper-actions button:focus-visible{outline:1px dotted #826f46;outline-offset:1px}
 .physical-reading .blank-paper .running-head,.physical-reading .blank-paper .page-footer{visibility:hidden}
+.physical-reading .blank-paper .page-footer:has(.paper-actions){visibility:visible}
 .physical-reading .blank-paper{background-color:#eee4cc}
 .physical-reading .special-leaf .running-head{border-color:transparent}
 .physical-reading .paper:has(.half-title,.title-leaf,.imprint-leaf) .running-head{visibility:hidden}

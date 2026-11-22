@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Feather, List, PanelLeftClose, PenLine, Square, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ArrowUp, Feather, Square, X } from 'lucide-react'
 import Room from './Room'
 import type { Journey } from './RoomScene'
 import BookFrontMatter, { initialMetadata, PaperField, type BookMetadata } from './BookFrontMatter'
@@ -52,6 +52,8 @@ export default function App() {
   const notesScrollTop = useRef(0)
   const shelfRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const modeRef = useRef<HTMLButtonElement>(null)
+  const directoryRef = useRef<HTMLButtonElement>(null)
   const turnSnapshot = useRef<{ direction: number; front: HTMLElement; under?: HTMLElement } | null>(null)
   const turnAnimation = useRef<Animation | null>(null)
   const hasPickedUp = useRef(false)
@@ -71,6 +73,9 @@ export default function App() {
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
   }, [])
+  useLayoutEffect(() => {
+    if (opened && !journey) modeRef.current?.focus({ preventScroll: true })
+  }, [mode])
   useLayoutEffect(() => {
     if (!opened || mode !== 'book' || !bodyRef.current) return
     const observer = new ResizeObserver(([entry]) => setMetrics({ width: Math.floor(entry.contentRect.width), height: Math.floor(entry.contentRect.height) }))
@@ -113,7 +118,7 @@ export default function App() {
   }, [opened, journey])
   useEffect(() => {
     if (!directory) return
-    const previous = document.activeElement as HTMLElement | null
+    const previous = directoryRef.current ?? document.activeElement as HTMLElement | null
     const trap = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setDirectory(false); return }
       if (event.key !== 'Tab') return
@@ -123,7 +128,7 @@ export default function App() {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
     document.addEventListener('keydown', trap)
-    return () => { document.removeEventListener('keydown', trap); previous?.focus() }
+    return () => { document.removeEventListener('keydown', trap); (previous?.isConnected ? previous : directoryRef.current)?.focus({ preventScroll: true }) }
   }, [directory])
   useLayoutEffect(() => {
     if (!probeRef.current || metrics.width < 20 || metrics.height < 100) return
@@ -331,6 +336,11 @@ export default function App() {
   const visibleFolios = pages.slice(pageIndex, pageIndex + (single ? 1 : 2)).flatMap(page => page.folio ? [page.folio] : [])
   const visibleIndexes = single ? [pageIndex] : [pageIndex, pageIndex + 1]
   const stopPageIndex = visibleIndexes.filter(index => pages[index]?.live).at(-1) ?? visibleIndexes.at(-1)
+  const paperActions = () => <nav className="paper-actions" aria-label="书内操作">
+    <button ref={directoryRef} onClick={() => setDirectory(true)} aria-label="打开全书目录">目录</button>
+    <button ref={modeRef} onClick={() => { cancelTurn(); setMode(mode === 'book' ? 'notes' : 'book') }} aria-label={mode === 'book' ? '切换到速记纸' : '回到书页'}>{mode === 'book' ? '速记纸' : '回到书页'}</button>
+    <button ref={closeRef} onClick={closeBook} aria-label="合上书，起身">合书</button>
+  </nav>
   const toc = (page?: BookPage) => <div className="toc-list compact">{tocItems.slice(page?.tocStart ?? 0, page?.tocEnd).map(section => <button key={section.id} onClick={() => jump(section.id)}><span>{section.title}</span><i /><b>{pages[pageForSection(pages, section.id)]?.folio || '—'}</b></button>)}</div>
   const composer = () => <div className="in-page-composer">
     <h6>Conversation {String(Math.floor(messages.length / 2) + 1).padStart(2, '0')} · 提问</h6>
@@ -344,7 +354,7 @@ export default function App() {
     <div className={`paper-body prose ${page?.role || ''}`} ref={index === pageIndex ? bodyRef : undefined}>
       {page?.kind === 'blank' ? null : page?.kind === 'toc' ? <><span className="chapter-kicker">CONTENTS</span><h1>Contents{page.tocStart ? ' (cont.)' : ''}</h1>{toc(page)}</> : page?.kind === 'writing' ? <div className="writing-leaf"><span className="chapter-kicker">AN OPEN LEAF</span><h1>The next thought</h1>{composer()}</div> : page?.kind === 'live' ? liveReply() : page?.kind ? <BookFrontMatter kind={page.kind} metadata={metadata} change={changeMetadata} model={model} setModel={setModel} effort={effort} setEffort={setEffort} /> : page ? <div dangerouslySetInnerHTML={{ __html: page.html }} /> : null}
     </div>
-    <footer className="page-footer"><span>{page?.folio || ''}</span>{writing && index === stopPageIndex ? <button className="paper-stop" onClick={() => bind(true)}><Square size={10} />停笔并装订</button> : <i />}</footer>
+    <footer className="page-footer with-paper-actions"><span>{page?.folio || ''}</span>{writing && index === stopPageIndex ? <button className="paper-stop" onClick={() => bind(true)}><Square size={10} />停笔并装订</button> : <i />}{index === visibleIndexes.at(-1) && paperActions()}</footer>
     <button className={`page-corner ${index % 2 || single ? 'next-corner' : 'previous-corner'}`} aria-label={index % 2 || single ? '翻起右页' : '翻起左页'} onClick={() => flip(index % 2 || single ? 1 : -1)} disabled={turning || (index % 2 || single ? pageIndex + (single ? 1 : 2) >= pages.length : pageIndex === 0)} />
   </article>
   const thickness = { '--left-stack': `${Math.min(25, 3 + pageIndex * .55)}px`, '--right-stack': `${Math.min(25, 3 + Math.max(0, pages.length - pageIndex - (single ? 1 : 2)) * .55)}px` } as CSSProperties
@@ -352,7 +362,6 @@ export default function App() {
   return <div className={`app ${opened ? 'reading physical-reading' : 'in-room'} ${journey ? 'in-transit' : ''}`} onClick={handleLink}>
     <div className="room-layer" inert={opened || !!journey} aria-hidden={opened || !!journey}><Room onOpen={openBook} bookAway={opened || !!journey} shelfRef={shelfRef} journey={journey} onReveal={revealReader} onFinish={finishJourney} /></div>
     {opened && <section className="reader-surface" aria-label="窗边书桌上的书" inert={!!journey}>
-      <div className="reader-toolbar"><div className="book-identity"><button className="icon-button back-room" ref={closeRef} onClick={closeBook} aria-label="合上书，起身"><PanelLeftClose size={18} /></button><div><strong>{BOOK_TITLE}</strong><span>STUDY LIBRARY / I · {Math.ceil(messages.length / 2)} conversations</span></div></div><div className="view-switch" aria-label="阅读模式"><button className={mode === 'book' ? 'active' : ''} onClick={() => { cancelTurn(); setMode('book') }}><BookOpen size={15} />书页</button><button className={mode === 'notes' ? 'active' : ''} onClick={() => { cancelTurn(); setMode('notes') }}><PenLine size={15} />速记</button></div><button className="text-button contents-button" onClick={() => setDirectory(true)}><List size={16} />目录<span>{totalPages} 页</span></button></div>
       <main className="workspace" ref={workspaceRef}>
         <div className="book-stage">
           {mode === 'book' ? <div className="spread" ref={spreadRef} style={thickness} key={single ? 'single' : 'double'}>
@@ -360,7 +369,7 @@ export default function App() {
             {renderPage(pages[pageIndex], pageIndex)}{!single && renderPage(pages[pageIndex + 1], pageIndex + 1)}
             <div className="leaf-host" ref={leafHost} aria-hidden="true" inert /><div className="book-ribbon" />
             <button className="writing-bookmark" onClick={() => jump(writing ? streamJob.current?.id || 'writing' : 'writing')} aria-label="翻到续写页"><Feather size={14} /><span>续写</span></button>
-          </div> : <div className="spread notes-spread" style={thickness}><div className="page-stack right-stack" aria-hidden="true" /><article className="paper notes-paper"><header className="running-head"><span>FIELD NOTES</span><span>STUDY LIBRARY</span></header><div className="paper-body prose notes-scroll" ref={notesRef} onScroll={event => { const node = event.currentTarget; notesFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32; notesScrollTop.current = node.scrollTop }}><span className="chapter-kicker">FIELD NOTES</span><h1>让想法，先流动起来。</h1>{messages.length === 0 && <p>不必整理，不必成章。这里的每一笔，也会留在书中。</p>}{messages.map(message => <section className="written-entry" key={message.id}><h6>{message.role === 'user' ? 'Question · 提问' : 'Response · 回应'} <button onClick={() => jump(message.id)} aria-label="在书页中阅读">↗</button></h6><div dangerouslySetInnerHTML={{ __html: safeMarkdown(message.content) }} />{message.process && <div dangerouslySetInnerHTML={{ __html: processRecordHtml(message.process) }} />}</section>)}{writing ? liveReply() : composer()}</div><footer className="page-footer"><span>Field notes</span><i /></footer></article></div>}
+          </div> : <div className="spread notes-spread" style={thickness}><div className="page-stack right-stack" aria-hidden="true" /><article className="paper notes-paper"><header className="running-head"><span>FIELD NOTES</span><span>STUDY LIBRARY</span></header><div className="paper-body prose notes-scroll" ref={notesRef} onScroll={event => { const node = event.currentTarget; notesFollow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 32; notesScrollTop.current = node.scrollTop }}><span className="chapter-kicker">FIELD NOTES</span><h1>让想法，先流动起来。</h1>{messages.length === 0 && <p>不必整理，不必成章。这里的每一笔，也会留在书中。</p>}{messages.map(message => <section className="written-entry" key={message.id}><h6>{message.role === 'user' ? 'Question · 提问' : 'Response · 回应'} <button onClick={() => jump(message.id)} aria-label="在书页中阅读">↗</button></h6><div dangerouslySetInnerHTML={{ __html: safeMarkdown(message.content) }} />{message.process && <div dangerouslySetInnerHTML={{ __html: processRecordHtml(message.process) }} />}</section>)}{writing ? liveReply() : composer()}</div><footer className="page-footer with-paper-actions"><span>Field notes · 连续纸</span>{paperActions()}</footer></article></div>}
           {mode === 'book' && <div className="pagination"><button className="icon-button" onClick={() => flip(-1)} disabled={turning || pageIndex === 0} aria-label="上一页"><ArrowLeft size={17} /></button><span>{visibleFolios.join(' — ') || 'Front matter'} <i>/</i> {single ? pageIndex + 1 : Math.floor(pageIndex / 2) + 1} of {Math.ceil(totalPages / (single ? 1 : 2))} {single ? 'pages' : 'spreads'}</span><button className="icon-button" onClick={() => flip(1)} disabled={turning || pageIndex + (single ? 1 : 2) >= pages.length} aria-label="下一页"><ArrowRight size={17} /></button></div>}
         </div>
       </main>
