@@ -9,18 +9,16 @@ export default function Room({ onOpen, bookAway, shelfRef, journey, onReveal, on
   const [unavailable, setUnavailable] = useState(false), [status, setStatus] = useState(initialRoomStatus), [help, setHelp] = useState(false)
   const controls = useRef<RoomControls | null>(null)
   const interaction = useRef<HTMLDivElement | null>(null)
-  const action = status.target === 'shelf' ? status.carrying ? '放回书架' : '取下这本书' : status.target === 'desk' ? '坐下，摊开书' : status.carrying ? '走近窗边书桌' : '走近书架取书'
+  const action = status.target === 'shelf' ? status.carrying ? '放回书架' : '取下这本书' : '坐下，摊开书'
   const pad = (key: string, label: string, icon: ReactNode) => <button aria-label={label} onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); controls.current?.press(key) }} onPointerUp={() => controls.current?.release(key)} onPointerCancel={() => controls.current?.release(key)} onLostPointerCapture={() => controls.current?.release(key)} onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); controls.current?.press(key) } }} onKeyUp={() => controls.current?.release(key)} onBlur={() => controls.current?.release(key)}>{icon}</button>
   return <section className={`walk-room${bookAway ? ' at-desk' : ''}${unavailable ? ' no-webgl' : ''}`} aria-label="第一人称书房">
     <RoomScene onOpen={onOpen} bookAway={bookAway} controlsRef={controls} interactionRef={interaction} journey={journey} onReveal={onReveal} onFinish={onFinish} onUnavailable={() => setUnavailable(true)} onStatus={setStatus} />
     <div className="walk-shade" />
-    <div className="walk-location"><span>私人书房 / 午后</span><small>有些想法，值得慢一点。</small></div>
     {!unavailable && status.entered && <>
-      <div className="walk-objective"><span>{status.carrying ? '02' : '01'}</span><div><small>{status.carrying ? '手中 · 与自己的漫长对话' : '书架 · 与自己的漫长对话'}</small><strong>{status.carrying ? '在窗边，留下一段对话。' : '先找一本，愿意翻开的书。'}</strong></div></div>
       <div className={`walk-crosshair ${status.target ? 'near' : ''}`} aria-hidden="true" />
-      <div ref={interaction} className={`walk-interaction${status.target ? ' anchored' : ''}${status.target && status.carrying ? ' above' : ''}`} aria-live="polite"><p>{status.hint}</p><button ref={shelfRef} className={status.target ? 'ready' : ''} onClick={() => controls.current?.interact()} aria-disabled={!status.target || status.busy}><kbd>E</kbd>{status.busy ? '慢慢来…' : action}</button></div>
+      <div ref={interaction} hidden={!status.target} className={`walk-interaction${status.target ? ' anchored' : ''}${status.target && status.carrying ? ' above' : ''}`} aria-live="polite"><p>{status.hint}</p><button ref={shelfRef} className={status.target ? 'ready' : ''} onClick={() => controls.current?.interact()} aria-disabled={!status.target || status.busy}><kbd>E</kbd>{status.busy ? '慢慢来…' : action}</button></div>
       {!status.paused && !status.busy && status.wantsCapture && !status.locked && <button className="walk-recapture" onClick={() => controls.current?.enter(true)}><MousePointer2 size={16} />点击恢复鼠标视角<span>也可点击画面；仍可按住拖动</span></button>}
-      <div className="walk-bottom"><span><kbd>W A S D</kbd> 行走 <i /> 鼠标{status.locked ? '转头' : '拖动转头'} <i /> <kbd>Esc</kbd> 暂停</span><button onClick={() => setHelp(!help)}>{help ? '收起辅助操作' : '辅助操作'}</button></div>
+      <div className="walk-bottom"><button onClick={() => setHelp(!help)}>{help ? '收起辅助操作' : '辅助操作'}</button></div>
       <div className={`walk-pad ${help ? 'show' : ''}`} aria-label="辅助行走控制">{pad('ArrowUp', '向前走', <ArrowUp size={18} />)}{pad('KeyA', '向左走', <ArrowLeft size={18} />)}{pad('ArrowDown', '向后走', <ArrowDown size={18} />)}{pad('KeyD', '向右走', <ArrowRight size={18} />)}<button aria-label="向左转头" onClick={() => controls.current?.turn(Math.PI / 6)}>↶</button><button aria-label="向右转头" onClick={() => controls.current?.turn(-Math.PI / 6)}>↷</button></div>
     </>}
     {!unavailable && (!status.entered || status.paused) && <div className="walk-welcome"><div>

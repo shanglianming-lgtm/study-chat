@@ -162,7 +162,7 @@ body{min-width:0}
 .walk-interaction button{color:#f3e8d0;background:#2e302af2;border:1px solid #e9dec144;border-radius:6px;padding:12px 22px;font-size:12px;letter-spacing:1px;display:inline-flex;align-items:center;gap:14px;white-space:nowrap}
 .walk-interaction button[aria-disabled=true]{opacity:.55}.walk-interaction button.ready{border-color:#f1deb1aa;background:#4f5e42ed;box-shadow:0 4px 25px #1c211a33}
 .walk-room kbd{font-family:inherit;font-size:10px;letter-spacing:1px;border:1px solid #e8ddbf55;border-radius:3px;padding:3px 5px}
-.walk-bottom{position:absolute;bottom:31px;left:40px;right:36px;display:flex;justify-content:space-between;align-items:center;color:#eadebf9e;font-size:10px;letter-spacing:.5px;gap:10px}
+.walk-bottom{position:absolute;bottom:31px;left:40px;right:36px;display:flex;justify-content:flex-end;align-items:center;color:#eadebf9e;font-size:10px;letter-spacing:.5px;gap:10px}
 .walk-bottom>span{display:flex;align-items:center;gap:9px}.walk-bottom i{width:2px;height:2px;background:#ecdfbd66;margin:0 8px;border-radius:50%}.walk-bottom button{font-size:10px;color:#f3e8d0;border-bottom:1px solid #e4d7b955;padding:6px}
 .walk-welcome{position:absolute;inset:0;display:flex;align-items:center;padding:100px 8%;background:linear-gradient(90deg,#211e17b3,transparent 85%)}
 .walk-welcome>div{max-width:420px}.walk-overline{font-size:9px;letter-spacing:4px;color:#eddbb7aa}.walk-welcome h1{font:400 clamp(28px,3vw,46px)/1.6 var(--serif);letter-spacing:3px;margin:28px 0 20px}.walk-welcome p{font:13px/2.4 var(--serif);white-space:pre-line;letter-spacing:1.2px;color:#ecdfc5c4;margin-bottom:33px}
