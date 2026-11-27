@@ -4,7 +4,8 @@ import type { DeskReading, PageSide } from './deskReading'
 /** A real, light-only 3D pass on the existing leaf's world plane. The room is
  * static during writing: relighting its 84 draws for one moving point source
  * stalls software GPUs. Composite this small irradiance pass below the ink,
- * through the SAME projected paper element; no screen-space glow substitute. */
+ * with the SAME physical leaf's projective matrix. It lives outside the CSS
+ * paper's isolated stack so additive blending reaches the actual room. */
 export function readingLight(software: boolean) {
   const scene = new THREE.Scene()
   const light = new THREE.PointLight(0xffaa33, 2, 3)
@@ -36,12 +37,15 @@ export function readingLight(software: boolean) {
         renderer.setPixelRatio(software ? .35 : Math.min(devicePixelRatio || 1, 1))
         renderer.domElement.className = 'spatial-light-canvas'
         renderer.domElement.setAttribute('aria-hidden', 'true')
+        document.body.append(renderer.domElement)
       }
       const canvas = renderer.domElement
-      if (canvas.parentElement !== paper) paper.prepend(canvas)
+      const projection = paper.closest<HTMLElement>('.desk-surface')?.style.getPropertyValue('--desk-' + side)
+      if (!projection) { hide(); return }
+      canvas.style.transform = projection
       const w = paper.offsetWidth, h = paper.offsetHeight
       if (!w || !h) { hide(); return }
-      if (w !== width || h !== height) { renderer.setSize(w, h, false); width = w; height = h }
+      if (w !== width || h !== height) { renderer.setSize(w, h); width = w; height = h }
       rig.worldPoint(side, 0, 1, 0, origin)
       rig.worldPoint(side, 1, 1, 0, right).sub(origin)
       rig.worldPoint(side, 0, 0, 0, up).sub(origin)
