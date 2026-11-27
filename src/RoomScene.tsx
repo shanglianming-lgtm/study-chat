@@ -610,6 +610,7 @@ export default function RoomScene(props: Props) {
       if (disposed || unavailable.current) return
       frame = requestAnimationFrame(animate)
       const environmentUpdate = room.updateEnvironment(now)
+      finish?.refreshEnvironment(room.environment.daylight, room.environment.lamp, now)
       if (environmentUpdate) {
         dirty = true
         if (environmentUpdate === 2) renderer.shadowMap.needsUpdate = true

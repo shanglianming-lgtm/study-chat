@@ -285,7 +285,7 @@ export function buildStudy(software = false) {
     return immediate || difference >= .0001 ? 2 : 1
   }
   updateEnvironment(0, true)
-  return { scene, furnishings, updateEnvironment, get linen() { return assets.linen }, ready: Promise.all([assets.ready, furnishings.ready]).then(() => updateEnvironment(performance.now(), true)), dispose: () => {
+  return { scene, furnishings, updateEnvironment, environment: state, get linen() { return assets.linen }, ready: Promise.all([assets.ready, furnishings.ready]).then(() => updateEnvironment(performance.now(), true)), dispose: () => {
     stopWeather()
     weatherView.dispose()
     furnishings.dispose()
