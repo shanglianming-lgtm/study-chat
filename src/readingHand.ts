@@ -23,6 +23,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
     poses = ['point', 'stroke', 'pinch', 'rewind', 'sweep'] as const
   hand.scale.setScalar(.76) // Keep the character branch's page-hand framing.
   const meshes: THREE.Mesh[] = []
+  const inkFraming = { value: 0 }
   const bounds = new THREE.Box3(), relaxedBounds = new THREE.Box3(), fingerBounds = new THREE.Box3()
   const cropCamera = new THREE.PerspectiveCamera()
   avatar.traverse((obj) => {
@@ -146,6 +147,19 @@ export function readingHand(avatar: THREE.Group, software = false) {
       transparent: true,
       forceSinglePass: true,
     })
+    // Keep the avatar geometry and .76 scale untouched. This view-only wrist
+    // falloff lets the fingers and a little palm lead the spell instead of a
+    // full forearm covering the leaf. Other hand actions retain their framing.
+    mat.onBeforeCompile = shader => {
+      shader.uniforms.inkFraming = inkFraming
+      shader.uniforms.inkKnuckle = { value: (knuckles[1].z + knuckles[4].z) / 2 - .012 }
+      shader.vertexShader = 'varying float vInkReach;\n' + shader.vertexShader.replace(
+        '#include <project_vertex>', 'vInkReach = transformed.z;\n#include <project_vertex>')
+      shader.fragmentShader = 'uniform float inkFraming; uniform float inkKnuckle; varying float vInkReach;\n' +
+        shader.fragmentShader.replace('#include <dithering_fragment>',
+          '#include <dithering_fragment>\ngl_FragColor.a *= 1.0 - inkFraming * smoothstep(inkKnuckle, 0.008, vInkReach);')
+    }
+    mat.customProgramCacheKey = () => 'reading-hand-wrist-falloff-v1'
     geo.computeBoundingBox() // Includes every absolute morph target.
     bounds.union(geo.boundingBox!)
     relaxedBounds.union(new THREE.Box3().setFromBufferAttribute(
@@ -194,10 +208,12 @@ export function readingHand(avatar: THREE.Group, software = false) {
     if (renderer) renderer.domElement.hidden = true
     signal = undefined
     inking = false
+    inkFraming.value = 0
   }
   return {
     write(side: PageSide, u: number, v: number, alpha: number, rig: DeskReading) {
       inking = true
+      inkFraming.value = 1
       inkOpacity = alpha
       signal = { action: 'stroke', side, u, v, seq: 0 }
       rig.worldPoint(side, 0, 0, 0, inkOrigin)
@@ -205,7 +221,9 @@ export function readingHand(avatar: THREE.Group, software = false) {
       rig.worldPoint(side, 0, 1, 0, inkDown).sub(inkOrigin).normalize()
       inkNormal.crossVectors(inkDown, inkRight).normalize()
       hand.quaternion.setFromRotationMatrix(inkBasis.makeBasis(inkRight, inkNormal, inkDown)).multiply(inkTurn)
-      rig.worldPoint(side, u, v, .022, inkTarget)
+      // Five centimetres above the physical leaf: real parallax leaves room
+      // to see the active gold immediately beneath the hovering fingertips.
+      rig.worldPoint(side, u, v, .05, inkTarget)
       hand.position.copy(inkTarget).sub(inkOffset.copy(inkTip.position).multiply(hand.scale).applyQuaternion(hand.quaternion))
       hand.updateMatrixWorld(true)
       return { tip: inkTip.getWorldPosition(new THREE.Vector3()), palm: inkPalm.getWorldPosition(new THREE.Vector3()) }
@@ -214,6 +232,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
     play(s: HandSignal, now: number) {
       if (meshes.length && !unavailable && !reduced.matches) {
         inking = false
+        inkFraming.value = 0
         signal = s
         start = now
         lastPaint = 0

@@ -14,7 +14,7 @@ export function InkDebugPanel() {
   const simulate = () => {
     clearInterval(stream.current)
     inkDebug.set({ enabled: true, mode: 'stream', text: '', progress: 0 })
-    const tokens = ['星河', '凝作', '墨，', '万物', '入书', '来。']
+    const tokens = ['Star', 'light ', 'gathers ', 'into ', 'ancient ', 'ink.']
     let next = 0
     // This interval simulates backend token arrival ONLY. Activation is
     // exclusively the real 3D hand's spatial detector in the room RAF loop.
@@ -26,13 +26,13 @@ export function InkDebugPanel() {
   }
   return <aside className="ink-debug-panel" aria-label="Ink debug" onPointerDown={e => e.stopPropagation()}>
     <strong>Ink debug · temporary</strong>
-    <label>手部横扫 <output>{Math.round(state.progress * 100)}%</output>
+    <label>Hand sweep <output>{Math.round(state.progress * 100)}%</output>
       <input aria-label="手部横扫进度" type="range" min="0" max="100" step="1" value={state.progress * 100}
         onChange={e => { clearInterval(stream.current); inkDebug.set({ enabled: true, mode: 'scrub', text: inkDebug.sample, progress: +e.target.value / 100 }) }} />
     </label>
-    <div><button onClick={prepare}>重置字样</button><button onClick={simulate}>模拟流式输出</button></div>
-    <button onClick={() => { clearInterval(stream.current); inkDebug.set({ enabled: false }) }}>退出调试</button>
-    <small>拖动会重放真实空间触发并冻结该帧；流式按钮使用实时手势。不会写入书库。</small>
+    <div><button onClick={prepare}>Reset sample</button><button onClick={simulate}>Simulate streaming</button></div>
+    <button onClick={() => { clearInterval(stream.current); inkDebug.set({ enabled: false }) }}>Exit debug</button>
+    <small>Scrub freezes the spatial simulation. Streaming runs the live hand. No library data is changed.</small>
   </aside>
 }
 

@@ -13,7 +13,7 @@ type Target = {
 }
 export type InkHandPose = (side: PageSide, u: number, v: number, alpha: number) => { tip: THREE.Vector3; palm: THREE.Vector3 }
 export type InkDebugState = { enabled: boolean; progress: number; mode: 'scrub' | 'stream'; text: string; revision: number }
-const sample = '星河凝作墨，万物入书来。'
+const sample = 'Starlight gathers into ancient ink.'
 let debugState: InkDebugState = { enabled: false, progress: 0, mode: 'scrub', text: sample, revision: 0 }
 const subscribers = new Set<() => void>()
 export const inkDebug = {
@@ -112,6 +112,13 @@ function paint(target: Target, now: number, reduced: boolean) {
     ctx.fillStyle = life.color
     ctx.shadowColor = '#FFB800'
     ctx.shadowBlur = 25 * life.glow
+    // A narrow gold rim keeps white-gold legible on bright, lit parchment;
+    // the body color and its two-pass 25px peak remain the specified curve.
+    if (life.glow > .01) {
+      ctx.strokeStyle = '#FFD700'
+      ctx.lineWidth = .7 * life.glow
+      ctx.strokeText(glyph.text, 0, ascent)
+    }
     ctx.fillText(glyph.text, 0, ascent)
     if (life.phase === 1) ctx.fillText(glyph.text, 0, ascent)
     ctx.restore()
@@ -247,7 +254,7 @@ export const bookInk = {
     if (debug && debugState.mode === 'scrub' && debug.glyphs.length) {
       manual = true
       const glyphs = debug.glyphs, first = glyphs[0], last = glyphs.at(-1)!
-      const start = first.x - 12, end = last.x + 12, duration = 6000, elapsed = duration * debugState.progress
+      const start = first.x - 12, end = last.x + 12, duration = 4000, elapsed = duration * debugState.progress
       const sampleAt = (time: number) => {
         const x = start + (end - start) * time / duration
         const actual = pose(debug.side, x / debug.width, first.y / debug.height, 1)

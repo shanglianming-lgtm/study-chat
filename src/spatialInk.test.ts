@@ -11,7 +11,7 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
   vi.stubGlobal('matchMedia', () => ({ matches: false }))
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-    setTransform() {}, clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, fillText() {},
+    setTransform() {}, clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, fillText() {}, strokeText() {},
     measureText: () => ({ fontBoundingBoxAscent: 14 }), beginPath() {}, arc() {}, fill() {}, rect() {}, clip() {},
   } as never)
   Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true,
