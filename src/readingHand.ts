@@ -15,10 +15,12 @@ export function readingHand(avatar: THREE.Group) {
   const basis = new THREE.Matrix4().makeBasis(x, y, z).setPosition(wrist).invert(),
     tip = joint('Index3_end').applyMatrix4(basis)
   const digits = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'],
-    knuckles = digits.map((d) => joint(d + '1').applyMatrix4(basis))
+    joints = digits.map((d) => [1, 2, 3].map(n => joint(d + n).applyMatrix4(basis)))
+  const handScale = 0.76
   const hand = new THREE.Group(),
     poses = ['point', 'stroke', 'pinch', 'rewind', 'sweep'] as const
   const meshes: THREE.Mesh[] = []
+  hand.scale.setScalar(handScale)
   avatar.traverse((obj) => {
     if (
       !(obj instanceof THREE.SkinnedMesh) ||
@@ -31,7 +33,9 @@ export function readingHand(avatar: THREE.Group) {
       bones = g.attributes.skinIndex,
       positions = g.attributes.position,
       uv = g.attributes.uv
-    const kept = new Map<number, { pos: THREE.Vector3; normal: THREE.Vector3; digit: number }>()
+    const kept = new Map<number, {
+      pos: THREE.Vector3; normal: THREE.Vector3; digit: number; bends: number[]
+    }>()
     for (let i = 0; i < positions.count; i++) {
       let strongest = 0,
         name = ''
@@ -56,7 +60,17 @@ export function readingHand(avatar: THREE.Group) {
         .applyMatrix4(basis)
         .sub(pos)
         .normalize()
-      kept.set(i, { pos, normal, digit: digits.findIndex((d) => name.includes(d)) })
+      const digit = digits.findIndex((d) => name.includes(d))
+      const bends = [1, 2, 3].map(segment => {
+        let influence = 0
+        for (let a = 0; a < 4; a++) {
+          const boneName = obj.skeleton.bones[bones.getComponent(i, a)].name
+          if (digit >= 0 && boneName.startsWith('J_Bip_R_' + digits[digit]) &&
+            Number(boneName.match(/(\d)/)?.[1]) >= segment) influence += weights.getComponent(i, a)
+        }
+        return influence
+      })
+      kept.set(i, { pos, normal, digit, bends })
     }
     const ids: number[] = [],
       index: number[] = [],
@@ -97,15 +111,14 @@ export function readingHand(avatar: THREE.Group) {
         3
       )
     )
-    geo.morphAttributes.position = poses.map(
-      (p) =>
-        new THREE.Float32BufferAttribute(
-          ids.flatMap((i) => {
-            const { pos, digit } = kept.get(i)!,
-              point = pos.clone()
+    const curlAxis = new THREE.Vector3(1, 0, 0), thumbAxis = new THREE.Vector3(0, 1, 0)
+    const morphs = poses.map(p => {
+      const normals: number[] = []
+      const positions = ids.flatMap(i => {
+            const { pos, normal, digit, bends } = kept.get(i)!,
+              point = pos.clone(), shade = normal.clone()
             if (digit >= 0) {
-              const pivot = knuckles[digit],
-                angle =
+              const angle =
                   digit === 0
                     ? p === 'pinch'
                       ? 0.57
@@ -121,15 +134,27 @@ export function readingHand(avatar: THREE.Group) {
                         : p === 'rewind'
                           ? 0.48
                           : 0.13
-              point.sub(pivot).applyAxisAngle(new THREE.Vector3(1, 0, 0), -angle)
-              if (digit === 0 && p === 'pinch') point.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.35)
-              point.add(pivot)
+              // Bend from the tip back to the root using the original skin
+              // weights. No more rigid fingers hinging only at the knuckle.
+              for (let segment = 2; segment >= 0; segment--) {
+                const pivot = joints[digit][segment]
+                const bend = -angle * bends[segment] * [0.55, 0.60, 0.35][segment]
+                point.sub(pivot).applyAxisAngle(curlAxis, bend).add(pivot)
+                shade.applyAxisAngle(curlAxis, bend)
+              }
+              if (digit === 0 && p === 'pinch') {
+                point.sub(joints[0][0]).applyAxisAngle(thumbAxis, -0.35).add(joints[0][0])
+                shade.applyAxisAngle(thumbAxis, -0.35)
+              }
             }
+            normals.push(...shade.toArray())
             return point.toArray()
-          }),
-          3
-        )
-    )
+      })
+      return { position: new THREE.Float32BufferAttribute(positions, 3),
+        normal: new THREE.Float32BufferAttribute(normals, 3) }
+    })
+    geo.morphAttributes.position = morphs.map(m => m.position)
+    geo.morphAttributes.normal = morphs.map(m => m.normal)
     const mat = new THREE.MeshStandardMaterial({
       map: obj.material.map,
       color: obj.material.color,
@@ -217,7 +242,8 @@ export function readingHand(avatar: THREE.Group) {
         action === 'rewind' ? 0.44 * Math.sin(2 * Math.PI * t) : 0.08 * arc,
         'YXZ'
       )
-      hand.position.lerpVectors(entry, location, ease).sub(tip.clone().applyQuaternion(hand.quaternion))
+      hand.position.lerpVectors(entry, location, ease)
+        .sub(tip.clone().multiplyScalar(handScale).applyQuaternion(hand.quaternion))
       for (const mesh of meshes)
         mesh.morphTargetInfluences?.forEach((_, i, morphs) => {
           morphs[i] = poses[i] === action ? arc : 0

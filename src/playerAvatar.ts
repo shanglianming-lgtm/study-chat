@@ -40,8 +40,11 @@ export function createPlayerAvatar(model: THREE.Group, standingEyes: number) {
   const fingers = ['Index', 'Middle', 'Ring', 'Little'].map((name) => ({
     base: jointPitch(bone('J_Bip_R_' + name + '1'), across, palmNormal),
     middle: jointPitch(bone('J_Bip_R_' + name + '2'), across, palmNormal),
+    tip: jointPitch(bone('J_Bip_R_' + name + '3'), across, palmNormal),
   }))
   const bendWrist = jointPitch(wrist, across, palmNormal)
+  const thumbBase = jointPitch(bone('J_Bip_R_Thumb1'), across, palmNormal)
+  const thumbTip = jointPitch(bone('J_Bip_R_Thumb2'), across, palmNormal)
   const forearmAxis = wrist.position.clone().normalize(),
     palmRoll = new THREE.Quaternion()
   const legsAndArms = (side: 'L' | 'R') => {
@@ -137,28 +140,33 @@ export function createPlayerAvatar(model: THREE.Group, standingEyes: number) {
       const turnIn = 0.35 + 0.17 * (1 - THREE.MathUtils.smoothstep(camera.aspect, 0.55, 1))
       const aimSide = (aim?.x ?? 0) * (0.025 + 0.17 * THREE.MathUtils.smoothstep(camera.aspect, 0.63, 1.5))
       const aimHeight = aim?.y ?? 0
-      wristSide = aimSide
-      wristHeight = aimHeight
+      // Keep cursor-driven reaching continuous instead of snapping the whole
+      // forearm when the pointer enters the room or crosses the page edge.
+      wristSide = reduceMotion ? aimSide : THREE.MathUtils.damp(wristSide, aimSide, 16, dt)
+      wristHeight = reduceMotion ? aimHeight : THREE.MathUtils.damp(wristHeight, aimHeight, 16, dt)
       function pose(side: typeof left, swing: number, spell: number) {
         const knee = 0.45 * Math.max(0, -swing)
         side.thigh(-0.4 * swing - 1.22 * seated)
         side.shin(knee + 1.32 * seated)
         side.foot(0.2 * swing - knee * 0.55 - 0.1 * seated)
-        const reach = -1.18 - 0.27 * gesture + 0.095 * swing - 0.115 * aimHeight
+        const reach = -1.10 - 0.27 * gesture + 0.095 * swing - 0.115 * wristHeight
         side.arm(THREE.MathUtils.lerp(0.24 * swing - 0.16 * seated, reach, spell),
-          (turnIn + 0.22 * gesture + 0.055 * swing - aimSide) * spell)
+          (turnIn + 0.22 * gesture + 0.055 * swing - wristSide) * spell)
         side.elbow(THREE.MathUtils.lerp(-0.13 * Math.max(0, -swing) - 0.91 * seated,
-          -0.49 + 0.22 * gesture - 0.06 * swing - 0.035 * aimHeight, spell))
+          -0.49 + 0.22 * gesture - 0.06 * swing - 0.035 * wristHeight, spell))
       }
       pose(left, step, 0)
       pose(right, -step, casting)
       forearm.quaternion.multiply(palmRoll.setFromAxisAngle(forearmAxis, (1.54 - 0.72 * gesture) * casting))
       bendWrist((-0.065 - 0.19 * gesture) * casting, 0.15 * gesture * casting)
+      thumbBase(0.09 * casting, -0.10 * casting)
+      thumbTip(0.12 * casting)
       fingers.forEach((finger, i) => {
         const beckon = THREE.MathUtils.smoothstep(gesture, i * 0.11, 0.68 + i * 0.09)
         const curl = (0.07 + i * 0.073 + (0.32 + i * 0.064) * beckon) * casting
         finger.base(curl, (1.5 - i) * (0.025 - 0.055 * beckon) * casting)
         finger.middle(curl * 0.72)
+        finger.tip(curl * 0.42)
       })
       model.updateMatrixWorld(true)
       // Halfway across the palm and between the wrist crease and the roots of the fingers.
@@ -171,7 +179,7 @@ export function createPlayerAvatar(model: THREE.Group, standingEyes: number) {
       coverTilt.set(0.82 + 0.055 * wristHeight, 0.26 + 0.50 * wristSide, -0.042 - 0.12 * wristSide)
       rotation.copy(heading).multiply(coverRotation.setFromEuler(coverTilt))
       center.copy(castingPalm)
-      center.y += 0.226 * size
+      center.y += 0.235 * size
     },
   }
 }
