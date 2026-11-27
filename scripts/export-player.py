@@ -56,7 +56,14 @@ def portable_materials():
             pixels = np.empty(len(source.pixels), dtype=np.float32)
             source.pixels.foreach_get(pixels)
             pixels = pixels.reshape((-1, 4))
-            pixels[:, :3] *= np.array(mix.inputs['Color2'].default_value[:3])
+            # Image.pixels exposes encoded sRGB for these byte-backed atlases,
+            # whereas shader socket colours are scene-linear. Multiply in
+            # linear light, then encode once for the portable colour texture.
+            rgb = pixels[:, :3]
+            linear = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+            linear *= np.array(mix.inputs['Color2'].default_value[:3])
+            pixels[:, :3] = np.where(linear <= 0.0031308, linear * 12.92,
+                                    1.055 * linear ** (1 / 2.4) - 0.055)
             baked = bpy.data.images.new(material.name + ' | portable tint', *source.size, alpha=True)
             baked.pixels.foreach_set(pixels.ravel())
             baked.pack()
