@@ -343,17 +343,20 @@
     0 0 5px #e6b65e9c,
     1px 4px 3px #6950274a;
   isolation: isolate;
-  animation: surface-ink 640ms cubic-bezier(.16, .78, .2, 1) both;
+  animation: surface-ink var(--spell-rise) var(--spell-contact) cubic-bezier(.16, .78, .2, 1) both;
   will-change: transform, opacity;
 }
 @keyframes surface-ink {
   0% {
+    visibility: hidden;
     opacity: 0;
-    transform: translate3d(var(--lift-x, 0px), var(--lift-y, 12px), 0) scale(.94);
-    filter: blur(2px);
+    transform: translate3d(var(--lift-x, 0px), var(--lift-y, 12px), 0) rotateX(9deg) rotate(-1deg) scale(.91);
+    filter: blur(3px);
   }
-  55% { opacity: 1; filter: blur(0); }
+  1% { visibility: visible; }
+  62% { opacity: 1; filter: blur(.2px); }
   100% {
+    visibility: visible;
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     filter: blur(0);
@@ -361,7 +364,52 @@
 }
 .raised-words[data-retiring] {
   pointer-events: none;
-  animation: settle-ink 280ms cubic-bezier(.4, 0, .7, .25) both;
+  animation: settle-ink var(--spell-settle) cubic-bezier(.4, 0, .7, .25) both;
+}
+.raised-words:not([data-retiring]) .raised-copy > * {
+  animation: resolve-ink 680ms calc(var(--spell-contact) + 80ms + var(--ink-line, 0) * 32ms) cubic-bezier(.2, .7, .2, 1) both;
+}
+.raised-words[data-retiring] .raised-copy > * { animation-play-state: paused; }
+@keyframes resolve-ink {
+  from { opacity: 0; filter: blur(2px); transform: translateY(.35em); }
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+.ink-flight {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  user-select: none;
+}
+.ink-flight > span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: pre;
+  text-shadow: 0 0 .35em #dfb76f80;
+  will-change: transform, opacity;
+}
+.ink-wake {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: #c69d58;
+  stroke-linecap: round;
+}
+.ink-wake path {
+  stroke-dasharray: 1;
+  animation: brush-wake 940ms var(--spell-contact) cubic-bezier(.2, .65, .25, 1) both;
+}
+.ink-wake .thread { stroke-width: .65; }
+.ink-wake .haze { stroke-width: 7; filter: blur(4px); }
+@keyframes brush-wake {
+  0% { stroke-dashoffset: 1; opacity: 0; }
+  12% { opacity: .65; }
+  55% { stroke-dashoffset: 0; opacity: .45; }
+  100% { stroke-dashoffset: -.25; opacity: 0; }
 }
 @keyframes settle-ink {
   from {
@@ -371,7 +419,7 @@
   }
   to {
     opacity: 0;
-    transform: translate3d(var(--lift-x, 0px), var(--lift-y, 12px), 0) scale(.97);
+    transform: translate3d(var(--lift-x, 0px), var(--lift-y, 12px), 0) rotateX(6deg) scale(.94);
     filter: blur(1.2px);
   }
 }
@@ -508,7 +556,7 @@
   border-radius: 50%;
   box-shadow: 0 0 4px 1px #d7a451;
   opacity: 0;
-  animation: shed-gold 1150ms calc(var(--i) * 26ms) cubic-bezier(.16, .7, .25, 1) both;
+  animation: shed-gold 1150ms calc(var(--spell-contact) + 150ms + var(--i) * 26ms) cubic-bezier(.16, .7, .25, 1) both;
 }
 .gold-motes { transition: opacity 120ms; }
 .raised-words[data-retiring] .gold-motes { opacity: 0; }
@@ -810,7 +858,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gold-motes {
+  .gold-motes, .ink-flight {
     display: none;
   }
   .reading-hand {

@@ -90,16 +90,31 @@ describe('the user wears the supplied rig', () => {
   it('lets the open hand lead the folio even when the player just moves the cursor', () => {
     camera.aspect = 1.7
     const aim = new THREE.Vector2(-1, -1)
-    player.update(camera, eye, 0, 1 / 60, 0, 1, false, 0, aim)
+    for (let i = 0; i < 45; i++) player.update(camera, eye, 0, 1 / 60, 0, 1, false, 0, aim)
     const low = player.castingPalm.clone()
     aim.set(1, 1)
-    player.update(camera, eye, 0, 1 / 60, 0, 1, false, 0, aim)
+    for (let i = 0; i < 45; i++) player.update(camera, eye, 0, 1 / 60, 0, 1, false, 0, aim)
     expect(player.castingPalm.x - low.x).toBeGreaterThan(0.1)
     expect(player.castingPalm.y - low.y).toBeGreaterThan(0.09)
     const hover = bookPose()
     player.hoverTarget(hover.center, hover.rotation)
     expect(hover.center.x).toBe(player.castingPalm.x)
     expect(hover.center.z).toBe(player.castingPalm.z)
+  })
+  it('eases a cursor jump without overshooting and converges across frame rates', () => {
+    camera.aspect = 1.7
+    const aim = new THREE.Vector2(1, 1)
+    player.update(camera, eye, 0, 1 / 60, 0, 1, false, 0, new THREE.Vector2())
+    const start = player.castingPalm.clone()
+    player.update(camera, eye, 0, 1 / 60, 0, 1, false, 0, aim)
+    const first = player.castingPalm.clone()
+    for (let i = 0; i < 60; i++) player.update(camera, eye, 0, 1 / 60, 0, 1, false, 0, aim)
+    const end = player.castingPalm.clone()
+    expect(first.distanceTo(start)).toBeGreaterThan(0)
+    expect(first.distanceTo(start)).toBeLessThan(end.distanceTo(start) * 0.4)
+    player.update(camera, eye, 0, 1 / 60, 0, 1, true, 0, new THREE.Vector2())
+    for (let i = 0; i < 30; i++) player.update(camera, eye, 0, 1 / 30, 0, 1, false, 0, aim)
+    expect(player.castingPalm.distanceTo(end)).toBeLessThan(0.00001)
   })
   it('keeps visible air between the actual hand and closed cover throughout the hover', async () => {
     const bytes = readFileSync(new URL('../public/assets/models/02_ProjectFolio.glb', import.meta.url))
@@ -136,7 +151,8 @@ describe('the user wears the supplied rig', () => {
       camera.aspect = aspect
       camera.updateProjectionMatrix()
       camera.rotation.set(pitch, yaw, 0, 'YXZ')
-      player.update(camera, eye.clone().setX(yaw), 0.03, 0.02, 0, 1, false, 0, new THREE.Vector2(x, y))
+      for (let i = 0; i < 45; i++)
+        player.update(camera, eye.clone().setX(yaw), 0.03, 0.02, 0, 1, false, 0, new THREE.Vector2(x, y))
       const palmNormal = position('J_Bip_R_Index1').sub(position('J_Bip_R_Little1'))
         .cross(position('J_Bip_R_Middle1').sub(position('J_Bip_R_Hand'))).normalize()
       expect(palmNormal.y).toBeGreaterThan(0.85)

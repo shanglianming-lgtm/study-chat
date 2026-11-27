@@ -41,9 +41,11 @@ import { maintainReadingPosition } from './readingPosition'
 import { shouldSend } from './book'
 import { PaperField } from './BookFrontMatter'
 import type { PageSide } from './deskReading'
+import { INK_SPELL } from './inkSpell'
+import { inkFlight } from './inkFlight'
 
 export type HandAction = 'point' | 'sweep' | 'stroke' | 'pinch' | 'rewind'
-export type Gesture = (action: HandAction, side: PageSide, u: number, v: number) => void
+export type Gesture = (action: HandAction, side: PageSide, u: number, v: number, width?: number) => void
 type Float = {
   side: PageSide
   x: number
@@ -493,6 +495,7 @@ export default function Correspondence({
     anchor = useRef<Element | null>(null),
     cue = useRef(0)
   const floatingRef = useRef<HTMLDivElement>(null)
+  const cancelFlight = useRef<() => void>(() => {})
   useLayoutEffect(() => {
     const el = floatingRef.current
     if (!el) return
@@ -513,6 +516,12 @@ export default function Correspondence({
     obs.observe(el)
     return () => obs.disconnect()
   }, [float?.cue, float?.kind, float?.x, float?.y])
+  useLayoutEffect(() => {
+    const source = anchor.current, panel = floatingRef.current
+    if (!source || !panel || !float) return
+    cancelFlight.current = inkFlight(source, panel, float.side, retiring)
+    return () => cancelFlight.current()
+  }, [float?.cue, retiring])
   const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   function dismiss() {
     if (retiring) return
@@ -557,7 +566,9 @@ export default function Correspondence({
     setRetiring(false)
     setFeedback('')
     setFloat({ ...f, placement, cue: ++cue.current })
-    gest('stroke', f.side, f.x, f.y)
+    const paper = el.closest('.paper')?.getBoundingClientRect()
+    const width = paper?.width ? Math.min(.72, Math.max(.18, el.getBoundingClientRect().width / paper.width)) : .36
+    gest('stroke', f.side, f.x, f.y, width)
   }
   useEffect(() => {
     setFloat(null)
@@ -566,7 +577,7 @@ export default function Correspondence({
   useEffect(() => {
     if (!retiring) return
     // Also finish if a motion preference change cancels the CSS animation.
-    const timeout = setTimeout(() => { setFloat(null); setRetiring(false) }, 340)
+    const timeout = setTimeout(() => { setFloat(null); setRetiring(false) }, INK_SPELL.settle + 60)
     return () => clearTimeout(timeout)
   }, [retiring])
   useLayoutEffect(() => {
@@ -605,6 +616,7 @@ export default function Correspondence({
   }, [book.id, scrollMark])
   function scrolled() {
     const pane = list.current!
+    cancelFlight.current()
     if (retiring) return
     if (float?.side === 'right' && float.kind !== 'undo' && anchor.current) {
       const bounds = anchor.current.getBoundingClientRect(),
@@ -758,7 +770,11 @@ export default function Correspondence({
         )}
       </article>
       {float && visible(float.side) && (
-        <div className={'raised-sheet rise-' + float.side} aria-live="polite">
+        <div className={'raised-sheet rise-' + float.side} aria-live="polite" style={{
+          '--spell-contact': INK_SPELL.contact + 'ms',
+          '--spell-rise': INK_SPELL.rise + 'ms',
+          '--spell-settle': INK_SPELL.settle + 'ms',
+        } as CSSProperties}>
           <div
             key={float.cue}
             ref={floatingRef}
@@ -803,7 +819,7 @@ export default function Correspondence({
               <div className="raised-copy">
                 {float.title && <h2>{float.title}</h2>}
                 {float.text?.split(/\n\s*\n/).map((p, i) => (
-                  <p key={i}>{p}</p>
+                  <p key={i} style={{ '--ink-line': Math.min(i + 1, 6) } as CSSProperties}>{p}</p>
                 ))}
               </div>
             )}
@@ -812,7 +828,7 @@ export default function Correspondence({
                 <h2>Process notes</h2>
                 {turn?.notes.length ? (
                   turn.notes.map((n, i) => (
-                    <p key={i}>
+                    <p key={i} style={{ '--ink-line': Math.min(i + 1, 6) } as CSSProperties}>
                       <b>{n.kind}</b> {n.text}
                     </p>
                   ))

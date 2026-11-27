@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { initialLibrary } from './library'
 import Correspondence from './Correspondence'
+import { INK_SPELL } from './inkSpell'
 
 vi.mock('./ManagementBook', () => ({ ModelOptions: () => null }))
 vi.mock('./BookFrontMatter', () => ({ PaperField: () => null }))
@@ -41,7 +42,7 @@ it('retires a focused destructive menu immediately, while preserving its visual 
     expect(panel.isConnected).toBe(true) // still visible only for the decorative settle
     expect(panel.inert).toBe(true)
     expect(document.activeElement).toBe(source)
-    await act(async () => vi.advanceTimersByTime(350))
+    await act(async () => vi.advanceTimersByTime(INK_SPELL.settle + 100))
     expect(host.querySelector('[role="dialog"]')).toBeNull()
     expect(book.turns[0].id).toBe('saved-turn')
   } finally {
