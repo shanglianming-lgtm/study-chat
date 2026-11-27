@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import type { HandAction } from './Correspondence'
 import type { DeskReading, PageSide } from './deskReading'
-import { INK_SPELL, inkBrushPose } from './inkSpell'
+import { INK_SPELL } from './inkSpell'
+import { createPageBrush } from './pageBrush'
 
 export type HandSignal = { action: HandAction; side: PageSide; u: number; v: number; width?: number; seq: number }
 export function readingHand(avatar: THREE.Group) {
@@ -17,8 +18,12 @@ export function readingHand(avatar: THREE.Group) {
     tip = joint('Index3_end').applyMatrix4(basis)
   const digits = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'],
     knuckles = digits.map((d) => joint(d + '1').applyMatrix4(basis))
+  const palm = knuckles[1].clone().lerp(knuckles[4], .5).multiplyScalar(.58)
+  palm.x += .012 // Carry the gesture on the little-finger edge of the palm.
+  const sweepPalm = createPageBrush(palm)
   const hand = new THREE.Group(),
     poses = ['point', 'stroke', 'pinch', 'rewind', 'sweep'] as const
+  hand.scale.setScalar(.76) // Keep the character branch's page-hand framing.
   const meshes: THREE.Mesh[] = []
   avatar.traverse((obj) => {
     if (
@@ -138,6 +143,7 @@ export function readingHand(avatar: THREE.Group) {
       color: obj.material.color,
       roughness: 0.83,
       side: THREE.DoubleSide,
+      transparent: true,
     })
     const mesh = new THREE.Mesh(geo, mat)
     mesh.frustumCulled = false
@@ -192,6 +198,8 @@ export function readingHand(avatar: THREE.Group) {
         renderer.toneMapping = THREE.ACESFilmicToneMapping
         renderer.setPixelRatio(Math.min(1.25, window.devicePixelRatio || 1))
         renderer.domElement.className = 'reading-hand'
+        // Preserve the character branch's hidden/narrow/reduced-motion fix.
+        renderer.domElement.style.removeProperty('display')
         renderer.domElement.setAttribute('aria-hidden', 'true')
         document.body.append(renderer.domElement)
       }
@@ -205,31 +213,26 @@ export function readingHand(avatar: THREE.Group) {
       const action = signal.action,
         arc = Math.sin(Math.PI * t),
         ease = THREE.MathUtils.smootherstep(t, 0, 0.46) * (1 - THREE.MathUtils.smootherstep(t, 0.57, 1))
-      const pose = inkBrushPose(now - start)
-      const slide =
-        action === 'sweep' ? 0.46 : action === 'stroke' ? 0.21 : action === 'rewind' ? -0.18 : 0.025
-      rig.worldPoint(
-        signal.side,
-        brush ? THREE.MathUtils.clamp(signal.u, .12, .88) + (pose.sweep - .5) * (signal.width ?? .36) : signal.u + slide * (0.48 - t),
-        signal.v + (brush ? .018 * Math.sin(pose.sweep * Math.PI) - .035 * pose.lift : 0),
-        brush ? .005 + .026 * pose.lift : action === 'point' ? 0.009 : 0.016,
-        location
-      )
-      rig.worldPoint('right', 1.45, 1.45, 0.046, entry)
-      hand.rotation.set(
-        brush ? -.37 + .21 * pose.lift : -0.42 + 0.07 * arc,
-        (signal.side === 'left' ? 0.83 : 0.46) + (brush ? .28 * pose.sweep : 0.16 * t),
-        brush ? -.12 + .27 * pose.sweep + .1 * pose.lift : action === 'rewind' ? 0.44 * Math.sin(2 * Math.PI * t) : 0.08 * arc,
-        'YXZ'
-      )
-      hand.position.lerpVectors(entry, location, brush ? pose.reach : ease).sub(tip.clone().applyQuaternion(hand.quaternion))
-      for (const mesh of meshes)
+      let opacity = 1
+      if (brush) {
+        opacity = sweepPalm(hand, rig, signal.side, signal.u, signal.v, signal.width ?? .36, now - start)
+      } else {
+        const slide = action === 'sweep' ? 0.46 : action === 'rewind' ? -0.18 : 0.025
+        rig.worldPoint(signal.side, signal.u + slide * (0.48 - t), signal.v, action === 'point' ? 0.009 : 0.016, location)
+        rig.worldPoint('right', 1.45, 1.45, 0.046, entry)
+        hand.rotation.set(-0.42 + 0.07 * arc,
+          (signal.side === 'left' ? 0.83 : 0.46) + 0.16 * t,
+          action === 'rewind' ? 0.44 * Math.sin(2 * Math.PI * t) : 0.08 * arc, 'YXZ')
+        hand.position.lerpVectors(entry, location, ease).sub(tip.clone().multiply(hand.scale).applyQuaternion(hand.quaternion))
+      }
+      for (const mesh of meshes) {
+        (mesh.material as THREE.MeshStandardMaterial).opacity = opacity
         mesh.morphTargetInfluences?.forEach((_, i, morphs) => {
           morphs[i] = brush
-            ? poses[i] === 'stroke' ? pose.reach * (1 - .5 * pose.lift)
-              : poses[i] === 'pinch' ? pose.lift * pose.reach * .5 : 0
+            ? poses[i] === 'stroke' ? 1 : 0
             : poses[i] === action ? arc : 0
         })
+      }
       renderer.clear()
       renderer.render(scene, camera)
     },
