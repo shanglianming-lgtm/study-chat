@@ -321,6 +321,19 @@ describe('DOM pagination', () => {
     expect(after[index + 1].offset).toBeGreaterThan(position.offset)
     expect(pageForPosition(before, position)).toBe(3)
   })
+
+  it('breaks English prose between words and preserves the paragraph when the next leaf continues it', () => {
+    const probe = document.createElement('div')
+    Object.defineProperty(probe, 'scrollHeight', { get: () => (probe.textContent?.length || 0) * 3 })
+    const text = 'Some questions return quietly after the light has left the room.'
+    const pages = paginate([{ id: 'entry', title: 'Entry', markdown: text }], probe, 64)
+    const fragments = pages.map(page => { const div = document.createElement('div'); div.innerHTML = page.html; return div.firstElementChild! })
+    expect(fragments.map(p => p.textContent).join('')).toBe(text)
+    for (const [index, p] of fragments.entries()) {
+      if (index) expect(p.classList.contains('continued')).toBe(true)
+      if (index + 1 < fragments.length) expect((p.textContent || '').slice(-1) + fragments[index + 1].textContent?.[0]).toMatch(/\s/)
+    }
+  })
   it('keeps a short copyright ending with the preceding paragraph when they fit together', () => {
     const probe = document.createElement('div')
     Object.defineProperty(probe, 'scrollHeight', { get() {

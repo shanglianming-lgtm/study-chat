@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { batchStudy, cushionGeometry, roundedLoop, surfaceGeometry } from './studyGeometry'
 import { loadStudyAssets } from './studyAssets'
+import { furnishStudy } from './studyFurnishings'
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 
 type Point = [number, number, number]
@@ -108,26 +109,16 @@ export function buildStudy(software = false) {
   floor.rotation.x = -Math.PI / 2; floor.position.y = .005; floor.receiveShadow = true; scene.add(floor); roomOcclusion(floor)
   // An actual opening lets window light enter; an opaque wall behind the sky
   // would shadow the whole interior and flatten all of the material detail.
-  roomPanel([4.65, 3.6, .16], [-1.775, 1.8, -3.5], '#e7d6be')
-  roomPanel([.45, 3.6, .16], [3.875, 1.8, -3.5], '#e7d6be')
-  roomPanel([3.1, .9, .16], [2.1, .45, -3.5], '#e7d6be'); roomPanel([3.1, .45, .16], [2.1, 3.4, -3.5], '#e7d6be')
+  // Leave the supplied pierced wall's full bay open, including its window reveal.
+  roomPanel([4.278, 3.6, .16], [-1.961, 1.8, -3.5], '#e7d6be')
+  roomPanel([.178, 3.6, .16], [4.011, 1.8, -3.5], '#e7d6be')
+  roomPanel([3.744, .50, .16], [2.05, 3.35, -3.5], '#e7d6be')
   roomPanel([.16, 3.6, 7.2], [-4, 1.8, 0], '#e5d2b7')
-  roomPanel([.16, 3.6, 7.2], [4, 1.8, 0], '#e9dac3'); roomPanel([8.2, 3.6, .16], [0, 1.8, 3.5], '#dfccb0')
+  roomPanel([.16, 3.6, 7.2], [4, 1.8, 0], '#e9dac3'); roomPanel([3.49, 3.6, .16], [-2.355, 1.8, 3.5], '#dfccb0')
+  roomPanel([3.49, 3.6, .16], [2.355, 1.8, 3.5], '#dfccb0')
+  roomPanel([1.22, 1.15, .16], [0, 3.025, 3.5], '#dfccb0')
   box([8, .12, .08], [0, .1, -3.38], '#bca17d'); box([.08, .12, 7], [-3.88, .1, 0], '#bca17d'); box([.08, .12, 7], [3.88, .1, 0], '#bca17d')
   roomPanel([8.1, .08, 7.1], [0, 3.62, 0], '#f0efeb')
-  // Broad window, brass curtain rail and softly folded curtains.
-  for (const x of [.61, 3.69]) box([.085, 2.32, .09], [x, 2.05, -3.34], darkWood, scene, .01)
-  for (const y of [.91, 3.19]) box([3.16, .085, .09], [2.15, y, -3.34], darkWood, scene, .01)
-  const sky = texture(256, 256, ctx => {
-    const g = ctx.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, '#a5c1cd'); g.addColorStop(1, '#e6dfc4'); ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 256)
-    for (let i = 0; i < 3; i++) { ctx.fillStyle = ['#a4b5a0', '#91a18b', '#7b947d'][i]; ctx.beginPath(); ctx.moveTo(0, 256); for (let x = 0; x <= 256; x += 8) ctx.lineTo(x, 208 + i * 12 + Math.sin(x / 65 + i * 2) * 17); ctx.lineTo(256, 256); ctx.fill() }
-    for (let i = 0; i < 11; i++) { const x = 10 + i * 24, y = 165 + noise(i) * 45; ctx.fillStyle = i % 2 ? '#71856d' : '#879a7b'; ctx.beginPath(); ctx.ellipse(x, y, 24, 32, -.2, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#64725b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 252); ctx.lineTo(x + 3, y - 13); ctx.stroke() }
-  })
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(2.88, 2.08), new THREE.MeshBasicMaterial({ map: sky.map })); glass.position.set(2.15, 2.05, -3.35); scene.add(glass)
-  // The sill used to share the desk's exact y=.94 top over a .22m overlap.
-  // Separate the surfaces so oblique views cannot produce stepped z-fighting.
-  box([.055, 2.18, .065], [2.75, 2.05, -3.3], '#746a54'); box([3.3, .1, .28], [2.15, .96, -3.2], '#e1c7a1')
-  box([3.03, .04, .07], [2.15, 2.02, -3.29], darkWood); box([.035, .14, .035], [2.79, 1.94, -3.23], '#9b814f')
   const rail = cylinder(.018, .018, 3.8, [2.1, 3.3, -3.14], '#96805c'); rail.rotation.z = Math.PI / 2
   for (const x of [.17, 4.01]) ball([x, 3.3, -3.14], [.048, .048, .048], '#96805c')
   const curtainMat = mat(linen); curtainMat.side = THREE.DoubleSide
@@ -147,96 +138,6 @@ export function buildStudy(software = false) {
       const ring = mesh(new THREE.TorusGeometry(.027, .005, 5, 14), '#96805c', [side - .22 + i * .088, 3.29, -3.14]); ring.rotation.y = Math.PI / 2
       box([.022, .07, .018], [side - .22 + i * .088, 3.23, -3.12], linen, scene, .007)
     }
-  }
-  // Back wall: full oak bookcase, irregular clothbound books and baskets.
-  const shelfX = -1.16
-  box([3.24, 2.98, .065], [shelfX, 1.53, -3.35], '#9d784e', scene, .014)
-  // Face frame, bullnose shelves, stepped crown and recessed frame-panel doors.
-  for (const x of [-2.82, -1.72, -.6, .49]) {
-    box([.095, 3, .55], [x, 1.51, -3.08], wood, scene, .012)
-    box([.12, 2.94, .065], [x, 1.53, -2.795], '#c49b65', scene, .018)
-  }
-  for (const y of [.08, .66, 1.27, 1.91, 2.53, 3.01]) {
-    box([3.4, .065, .55], [shelfX, y, -3.08], wood, scene, .012)
-    box([3.43, .045, .08], [shelfX, y - .005, -2.785], '#c49b65', scene, .018)
-  }
-  box([3.52, .09, .68], [shelfX, 3.07, -3.07], darkWood, scene, .025)
-  box([3.44, .055, .63], [shelfX, 3.135, -3.07], wood, scene, .018)
-  box([3.55, .04, .7], [shelfX, 3.18, -3.07], '#c49b65', scene, .015)
-  box([3.5, .11, .65], [shelfX, .075, -3.07], darkWood, scene, .018)
-  const colors = ['#a5b0a0', '#d9cfb9', '#b7a28a', '#7e9993', '#e1d8c5', '#b7a888', '#a7989b', '#b9bea8']
-  const bookLabels = texture(1024, 512, ctx => {
-    ctx.clearRect(0, 0, 1024, 512)
-    const titles = ['山间来信', '草木记', '慢读时光', '夏日漫游', '窗边手记', '日常之诗', '远方的风', '一日一页']
-    titles.forEach((title, n) => {
-      const x = n * 128; ctx.fillStyle = colors[n]; ctx.fillRect(x, 0, 128, 512)
-      ctx.strokeStyle = '#9c9278'; ctx.lineWidth = 2; ctx.strokeRect(x + 19, 65, 90, 365)
-      ctx.fillStyle = '#4c544b'; ctx.textAlign = 'center'; ctx.font = '32px "Noto Serif SC",serif'
-      Array.from(title).forEach((c, i) => ctx.fillText(c, x + 64, 157 + i * 51))
-      ctx.fillRect(x + 15, 35, 98, 5); ctx.fillRect(x + 15, 464, 98, 5)
-      ctx.font = '18px serif'; ctx.fillText(`0${n + 1}`, x + 64, 409)
-    })
-  })
-  const labelMat = new THREE.MeshStandardMaterial({ map: bookLabels.map, roughness: .88 }); labelMat.name = 'Clothbound spine atlas'
-  const volume = (w: number, h: number, d: number, c: string, parent: THREE.Object3D) => {
-    box([w - .017, h - .035, d - .036], [0, 0, -.008], '#efe5cb', parent)
-    for (const x of [-w / 2, w / 2]) box([.011, h, d], [x, 0, 0], c, parent, .004)
-    const spine = cylinder(w / 2, w / 2, h, [0, 0, d / 2 - .014], c, parent); spine.scale.z = .37
-    for (const y of [-.39, -.31, .31, .39]) box([w * .87, .006, .008], [0, y * h, d / 2 + .009], '#b6a16c', parent, .002)
-  }
-  for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) for (let i = 0; i < 4; i++) {
-    if (row === 1 && col === 1 && i < 2) continue
-    const n = (i + col * 3 + row * 2) % colors.length, h = .35 + ((i * 7 + row * 3 + col) % 5) * .035
-    const w = .12 + noise(i + row * 10 + col) * .055, d = .30 + noise(i + col * 10) * .055
-    const g = new THREE.Group(); g.position.set(-2.64 + col * 1.1 + i * .22, [.7, 1.31, 1.95, 2.57][row] + h / 2, -3.04 + noise(row + i) * .025)
-    g.rotation.z = (noise(i + row + col * 3) - .5) * .1; scene.add(g); volume(w, h, d, colors[n], g)
-    const geometry = surfaceGeometry(10, 1, (u, v) => {
-      const x = (u - .5) * w * .86
-      return new THREE.Vector3(x, (.5 - v) * h * .94, d / 2 - .014 + Math.sqrt(1 - (x / (w / 2)) ** 2) * w * .185 + .002)
-    }), uv = geometry.getAttribute('uv')
-    for (let v = 0; v < uv.count; v++) { uv.setX(v, (uv.getX(v) + n) / colors.length); uv.setY(v, 1 - uv.getY(v)) }
-    g.add(new THREE.Mesh(geometry, labelMat))
-  }
-  for (const x of [-2.27, -1.16, -.05]) {
-    box([1.0, .46, .035], [x, .355, -2.785], '#7b593c', scene, .01)
-    box([.81, .285, .025], [x, .355, -2.765], '#b79764', scene, .014)
-    for (const sign of [-1, 1]) {
-      box([.085, .43, .055], [x + sign * .455, .355, -2.75], wood, scene, .009)
-      box([.9, .075, .055], [x, .355 + sign * .183, -2.75], wood, scene, .009)
-    }
-    const pull = mesh(new THREE.TorusGeometry(.027, .006, 6, 16), '#9b814f', [x + .31, .37, -2.708]); pull.rotation.x = .22
-    for (const y of [.22, .49]) cylinder(.013, .013, .04, [x - .465, y, -2.71], '#96805c').rotation.x = Math.PI / 2
-  }
-  for (let i = 0; i < 3; i++) {
-    const g = new THREE.Group(); g.position.set(-.12, 2.61 + i * .075, -3.02); g.rotation.set(0, i * .08, Math.PI / 2); scene.add(g)
-    volume(.06, .5 - i * .025, .36, colors[i], g)
-  }
-  const plant = (p: Point, scale = 1) => {
-    const g = new THREE.Group(); g.position.set(...p); g.scale.setScalar(scale); scene.add(g)
-    turned([[0, 0], [.105, 0], [.118, .025], [.16, .255], [.172, .263], [.172, .285], [.15, .29], [.145, .268], [.14, .23], [0, .23]], [0, 0, 0], '#b68c60', g)
-    cylinder(.143, .143, .012, [0, .24, 0], '#524536', g)
-    for (let i = 0; i < 12; i++) {
-      const a = i * 2.4, height = .35 + i % 4 * .09
-      const end: Point = [Math.cos(a) * .12, height, Math.sin(a) * .12]
-      joint([0, .25, 0], end, .009, .004, '#62744b', g)
-      const leaf = mesh(surfaceGeometry(6, 10, (u, v) => new THREE.Vector3((u - .5) * .18 * Math.sin(v * Math.PI) ** .7, v * .05 + Math.sin(v * Math.PI) * (.035 - Math.abs(u - .5) * .05), v * .27)), i % 2 ? '#708450' : '#8d9e66', end, g)
-      leaf.rotation.set(-.4, a, .14); (leaf.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide
-    }
-    return g
-  }
-  // A low planter fits below the ceiling; vines have connected stems and leaves.
-  turned([[0, 0], [.1, 0], [.12, .015], [.17, .12], [.17, .15], [.155, .16], [.145, .135], [.14, .115], [0, .115]], [-2.36, 3.2, -3.06], '#b68c60')
-  cylinder(.14, .14, .01, [-2.36, 3.322, -3.06], '#524536')
-  for (const branch of [0, 1]) {
-    const x = -2.5 + branch * .22, count = branch ? 7 : 11
-    const stem: Point[] = [[-2.36, 3.32, -3.06], [x, 3.31, -2.88], [x, 3.2, -2.735]]
-    for (let i = 0; i < count; i++) {
-      const anchor: Point = [x + Math.sin(i * .8) * .026, 3.17 - i * .103, -2.735]
-      stem.push(anchor)
-      const leaf = mesh(surfaceGeometry(8, 10, (u, v) => new THREE.Vector3((u - .5) * .145 * Math.sin(v * Math.PI) ** .7, -v * .19, Math.sin(v * Math.PI) * (.024 - Math.abs(u - .5) * .032))), i % 2 ? '#708450' : '#8d9e66', anchor)
-      leaf.rotation.z = (i % 2 ? 1 : -1) * .68; leaf.rotation.y = Math.sin(i) * .3
-    }
-    tube(stem, .004, '#62744b')
   }
   // Left: upholstered sage sofa, pillows, throw, side table, floor lamp, framed print.
   const sofa = new THREE.Group(); sofa.position.set(-3.28, 0, -.05); sofa.rotation.y = Math.PI / 2; scene.add(sofa)
@@ -314,25 +215,7 @@ export function buildStudy(software = false) {
   // slightly raised fabric surface or depend on transparent-plane sorting.
   rug([2.55, .018, 3.4], [-2.28, .035, .12], '#cab999', [[-3.25, -.15, .66, 1.38, .55], [-2.65, 1.78, .4, .4, .45]], [[-2.82, -1.2], [-2.82, .92], [-2.65, 1.78]])
   rug([2.9, .018, 2.15], [2.18, .035, -1.94], '#b48263', [[2.17, -2.7, 1.35, .6, .42], [2.15, -1.55, .52, .5, .5]], [[.905, -2.275], [3.435, -2.275], [1.8, -1.87], [2.5, -1.87], [1.8, -1.23], [2.5, -1.23]])
-  box([2.83, .105, 1.1], [2.17, .8875, -2.73], '#c49b65', scene, .036)
-  box([2.76, .025, 1.05], [2.17, .825, -2.73], darkWood, scene, .012)
-  box([2.57, .165, .055], [2.17, .733, -2.2], darkWood, scene, .015)
-  for (const x of [1.52, 2.81]) {
-    box([1.15, .145, .052], [x, .74, -2.16], '#7b593c', scene, .012)
-    box([1.10, .127, .035], [x, .74, -2.123], wood, scene, .012)
-    box([.91, .07, .012], [x, .74, -2.1], '#c49b65', scene, .012)
-    for (const dx of [-.11, .11]) { const foot = cylinder(.025, .025, .012, [x + dx, .75, -2.082], '#9b814f'); foot.rotation.x = Math.PI / 2 }
-    tube([[x - .11, .75, -2.075], [x - .09, .72, -2.045], [x + .09, .72, -2.045], [x + .11, .75, -2.075]], .009, '#9b814f')
-  }
-  for (const x of [.94, 3.4]) for (const z of [-3.13, -2.3]) {
-    const foot: Point = [x + (x < 2 ? -.035 : .035), .07, z + (z < -2.5 ? -.025 : .025)]
-    joint([x, .815, z], foot, .062, .034, darkWood)
-    box([.13, .14, .13], [x, .75, z], wood, scene, .015)
-    cylinder(.035, .038, .04, [foot[0], .05, foot[2]], '#9b814f')
-  }
-  box([.96, .018, .63], [2.12, .951, -2.65], '#596952', scene, .018)
-  piping(.925, .595, .025, [2.12, .962, -2.65], '#aab08b', scene, 'xz'); plant([1.23, .95, -2.99], .7)
-  const lamp = new THREE.Group(); lamp.position.set(3.02, .943, -2.94); scene.add(lamp)
+  const lamp = new THREE.Group(); lamp.position.set(1.63, 1.008, -2.91); scene.add(lamp)
   turned([[0, 0], [.175, 0], [.203, .012], [.21, .033], [.19, .06], [.08, .073], [.04, .09]], [0, 0, 0], '#9b814f', lamp)
   tube([[0, .07, 0], [0, .25, 0], [-.05, .46, .015], [-.04, .57, .015]], .018, '#9b814f', lamp)
   tube([[-.26, .59, .015], [-.26, .51, -.035], [0, .49, -.035], [.22, .51, -.035], [.22, .59, .015]], .012, '#9b814f', lamp)
@@ -347,55 +230,18 @@ export function buildStudy(software = false) {
   const diffuserMaterial = new THREE.MeshStandardMaterial({ color: '#fff0cd', emissive: '#ffe2a0', emissiveIntensity: 1.6, roughness: .6 })
   diffuser.material = diffuserMaterial; materials.set('desk-lamp-diffuser', diffuserMaterial)
   tube([[.155, .59, .02], [.16, .47, .03], [.15, .37, .04]], .003, '#a68a50', lamp); ball([.15, .36, .04], [.012, .018, .012], '#9b814f', lamp)
-  const deskLight = new THREE.PointLight('#ffe1a1', 2.2, 0, 2); deskLight.position.set(3, 1.51, -2.925); scene.add(deskLight)
+  const deskLight = new THREE.PointLight('#ffe1a1', 2.2, 0, 2); deskLight.position.set(1.61, 1.58, -2.895); scene.add(deskLight)
   const deskBulb = bulb.clone(); deskBulb.position.copy(deskLight.position); scene.add(deskBulb)
-  const saucer = cylinder(.13, .13, .018, [3.06, .958, -2.42], '#e4ddc8'); saucer.receiveShadow = true
-  cylinder(.075, .064, .12, [3.06, 1.023, -2.42], '#e4ddc8')
-  const tea = new THREE.Mesh(new THREE.CircleGeometry(.063, 20), new THREE.MeshStandardMaterial({ color: '#725334', roughness: .2 })); tea.rotation.x = -Math.PI / 2; tea.position.set(3.06, 1.085, -2.42); scene.add(tea)
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(.043, .012, 8, 16), mat('#e4ddc8')); handle.position.set(3.15, 1.025, -2.42); scene.add(handle)
-  for (let i = 0; i < 3; i++) { const pen = cylinder(.007, .007, .26, [1.47 + i * .035, .963, -2.45], i ? '#9b814f' : '#465641'); pen.rotation.z = Math.PI / 2; pen.rotation.y = .2 + i * .07 }
-  const chair = new THREE.Group(); chair.position.set(2.15, 0, -1.55); scene.add(chair)
-  box([.76, .075, .74], [0, .427, 0], darkWood, chair, .05)
-  soft([.71, .12, .68], [0, .49, -.015], '#d1bea0', chair, .025); piping(.68, .65, .11, [0, .527, -.015], '#a18b65', chair, 'xz')
-  const backFrame = new THREE.Group(); backFrame.position.set(0, .88, .3); backFrame.rotation.x = .12; chair.add(backFrame)
-  box([.76, .64, .095], [0, 0, .02], wood, backFrame, .06)
-  soft([.65, .53, .11], [0, 0, -.045], '#d1bea0', backFrame); piping(.62, .5, .09, [0, 0, -.078], '#aa9674', backFrame)
-  for (const x of [-.31, .31]) for (const z of [-.29, .29]) joint([x, .44, z], [x * 1.13, .045, z * 1.1], .039, .025, darkWood, chair)
-  for (const sign of [-1, 1]) {
-    tube([[sign * .32, .44, -.24], [sign * .4, .68, -.23], [sign * .4, .75, -.12], [sign * .37, .81, .28]], .025, wood, chair)
-    box([.085, .065, .57], [sign * .4, .77, .005], '#c49b65', chair, .028)
-  }
   // Cheap soft contact shadows ground furniture without per-frame AO passes.
   const contact = texture(128, 128, ctx => { const g = ctx.createRadialGradient(64, 64, 5, 64, 64, 64); g.addColorStop(0, '#241e18b8'); g.addColorStop(.45, '#241e1870'); g.addColorStop(1, '#241e1800'); ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128) }).map
   for (const [x, z, w, d] of [[-3.1, 0, 1.9, 3.3], [2.16, -2.45, 3.3, 1.6], [2.15, -1.55, 1.15, 1.05], [-2.65, 1.78, 1.2, 1.2]]) {
     const shadow = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: contact, transparent: true, depthWrite: false })); shadow.rotation.x = -Math.PI / 2; shadow.position.set(x, .065, z); scene.add(shadow)
   }
-  // Same physical, hinged volume at shelf, in hand and on desk.
-  const book = new THREE.Group(); scene.add(book); book.scale.setScalar(.55)
-  box([.695, 1.035, .115], [.009, 0, -.003], '#efe5cb', book, .008)
-  box([.77, 1.1, .026], [0, 0, -.082], '#536447', book, .011)
-  box([.714, 1.052, .006], [.005, 0, .059], '#d7cfb5', book, .003)
-  // Curved cloth spine wraps around the signatures; raised bands and headbands.
-  const binding = mesh(new THREE.CylinderGeometry(.097, .097, 1.1, 24, 1, false, Math.PI, Math.PI), '#536447', [-.325, 0, 0], book)
-  binding.scale.x = .64
-  for (const y of [-.521, .521]) {
-    const headband = cylinder(.056, .056, .014, [-.318, y, -.003], '#b6a16c', book); headband.scale.x = .5
-  }
-  for (const y of [-.43, -.36, .36, .43]) box([.014, .009, .167], [-.384, y, -.003], '#9a9f74', book, .004)
-  const ribbon = mesh(surfaceGeometry(5, 14, (u, v) => new THREE.Vector3(.17 + (u - .5) * .034 + Math.sin(v * 3) * .01, -.38 - v * .25, -.005 + Math.sin(v * 2.8) * .008)), '#a5744f', [0, 0, 0], book); (ribbon.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide
-  const lid = new THREE.Group(); lid.position.set(-.385, 0, .09); book.add(lid); box([.77, 1.1, .026], [.385, 0, 0], '#536447', lid, .011)
-  box([.715, 1.045, .006], [.385, 0, -.017], '#d7cfb5', lid, .003)
-  const title = texture(512, 768, ctx => {
-    ctx.fillStyle = '#536447'; ctx.fillRect(0, 0, 512, 768); ctx.strokeStyle = '#b7b58b'; ctx.lineWidth = 3; ctx.strokeRect(25, 25, 462, 718); ctx.fillStyle = '#f1e6c8'; ctx.textAlign = 'center'; ctx.font = '46px "Noto Serif SC",serif'; ctx.fillText('与自己的', 256, 275); ctx.fillText('漫长对话', 256, 350); ctx.font = '24px serif'; ctx.fillText('书房 Chat / 001', 256, 650)
-  })
-  const cover = new THREE.Mesh(new THREE.PlaneGeometry(.73, 1.06), new THREE.MeshStandardMaterial({ map: title.map })); cover.position.set(.385, 0, .014); lid.add(cover)
-  const spine = texture(128, 768, ctx => { ctx.fillStyle = '#536447'; ctx.fillRect(0, 0, 128, 768); ctx.fillStyle = '#f1e6c8'; ctx.textAlign = 'center'; ctx.font = '46px "Noto Serif SC",serif'; Array.from('与自己的漫长对话').forEach((c, i) => ctx.fillText(c, 64, 115 + i * 70)) })
-  const spineGeometry = surfaceGeometry(14, 1, (u, v) => { const angle = Math.PI * (u * .9 + .05); return new THREE.Vector3(-.325 - Math.sin(angle) * .063, (.5 - v) * 1.08, -Math.cos(angle) * .097) })
-  const spineUV = spineGeometry.getAttribute('uv'); for (let i = 0; i < spineUV.count; i++) spineUV.setY(i, 1 - spineUV.getY(i))
-  const spineFace = new THREE.Mesh(spineGeometry, new THREE.MeshStandardMaterial({ map: spine.map, side: THREE.DoubleSide })); book.add(spineFace)
-  batchStudy(scene, book, [sofa, glass])
-  const assets = loadStudyAssets({ scene, sofa, glass, floor: floorMat, software, wood: [...materials].filter(([c]) => woods.has(c)).map(([, m]) => m), fabric: [...materials].filter(([c]) => fabrics.has(c)).map(([, m]) => m), textures })
-  return { scene, book, lid, ready: assets.ready, repaint: () => { title.repaint(); spine.repaint(); bookLabels.repaint() }, dispose: () => {
+  const furnishings = furnishStudy(scene)
+  batchStudy(scene, furnishings.book, [sofa, furnishings.shelf])
+  const assets = loadStudyAssets({ scene, sofa, floor: floorMat, software, wood: [...materials].filter(([c]) => woods.has(c)).map(([, m]) => m), fabric: [...materials].filter(([c]) => fabrics.has(c)).map(([, m]) => m), textures })
+  return { scene, furnishings, get linen() { return assets.linen }, ready: Promise.all([assets.ready, furnishings.ready]), dispose: () => {
+    furnishings.dispose()
     assets.dispose()
     scene.traverse(o => { if (o instanceof THREE.Mesh) { if (o instanceof THREE.InstancedMesh) o.dispose(); o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()) } }); textures.forEach(t => t.dispose()); sun.shadow.map?.dispose()
   } }

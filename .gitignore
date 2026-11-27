@@ -5,3 +5,9 @@ src-tauri/gen/
 *.tsbuildinfo
 .DS_Store
 *.local
+
+# Local chat data and credentials are never source artifacts.
+*.sqlite3*
+*.db
+.env*
+/node_modules

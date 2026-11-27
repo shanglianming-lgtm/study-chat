@@ -2,9 +2,9 @@ import DOMPurify from 'dompurify'
 import { Lexer, Marked, Renderer } from 'marked'
 import { parse as parseDomain } from 'tldts'
 import remend from 'remend'
-import { SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
+import { appearsInContents, SOURCE_CARD_HTML, type Section, type PageKind, type ProcessRecord } from './content'
 
-export type BookPage = { sectionId: string; title: string; html: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; live?: boolean; tocStart?: number; tocEnd?: number; offset?: number; number?: number; folio?: string }
+export type BookPage = { sectionId: string; title: string; html: string; lang?: string; kind?: PageKind | 'blank'; role?: 'user' | 'assistant'; live?: boolean; tocStart?: number; tocEnd?: number; offset?: number; number?: number; folio?: string }
 export type ReadingPosition = { sectionId: string; offset: number }
 
 // Consume only this broken inline link, never following paragraphs. Until a
@@ -175,25 +175,80 @@ function fragmentLength(element: Element | DocumentFragment): number {
   return (element.textContent?.length || 0) + element.querySelectorAll('br').length
 }
 
+function breakBeforeWord(text: string, start: number, limit: number) {
+  const word = /[\p{Script=Latin}\p{M}\p{N}’']/u
+  let end = limit
+  if (word.test(text[end] || '')) {
+    while (end > start && word.test(text[end - 1])) end--
+  }
+  return end
+}
+
 export function paginate(sections: Section[], probe: HTMLElement, height: number): BookPage[] {
   const pages: BookPage[] = []
   const fits = (html: string) => { probe.innerHTML = html; return probe.scrollHeight <= height + 1 }
   for (const section of sections) {
+    const sample = (section.plainText ?? section.markdown).replace(/^######[^\n]*\n/, '').slice(0, 500)
+    const han = sample.match(/\p{Script=Han}/gu)?.length || 0
+    const latin = sample.match(/\p{Script=Latin}/gu)?.length || 0
+    const lang = (section.role || section.plainText !== undefined) && han * 2 > latin ? 'zh' : 'en'
+    probe.lang = lang
     probe.className = `prose pagination-probe ${section.role || ''}`
-    const page = (html: string): BookPage => ({ sectionId: section.id, title: section.title, role: section.role, live: section.live, kind: section.kind, html })
+    const page = (html: string): BookPage => ({ sectionId: section.id, title: section.title, role: section.role, live: section.live, kind: section.kind, lang, html })
     // Even array indices are left/verso; covers and chapter openings are recto.
-    if ((section.kind === 'cover' || section.recto) && pages.length % 2 === 0) {
+    if (((section.kind === 'cover' || section.recto) && pages.length % 2 === 0) ||
+        (section.kind === 'margins' && pages.length % 2 === 1)) {
       pages.push({ sectionId: `blank-before-${section.id}`, title: '', html: '', kind: 'blank' })
     }
     if (section.kind === 'toc') {
-      const count = sections.filter(item => item.id !== 'cover' && item.id !== 'contents').length
-      const perLeaf = Math.max(1, Math.floor((height - 100) / 28))
-      for (let start = 0; start < count; start += perLeaf) pages.push({ ...page(''), tocStart: start, tocEnd: start + perLeaf })
+      const entries = sections.filter(appearsInContents)
+      const wrapper = document.createElement('div')
+      wrapper.className = 'edition-toc'
+      const title = document.createElement('h1')
+      title.textContent = 'Contents'
+      const list = document.createElement('div')
+      list.className = 'edition-contents'
+      wrapper.append(title, list)
+      let start = 0
+      for (const [i, entry] of entries.entries()) {
+        const row = document.createElement('button')
+        for (const text of [entry.chapter || '', entry.title, '99']) {
+          const cell = document.createElement('span'); cell.textContent = text; row.append(cell)
+        }
+        list.append(row)
+        if (i > start && !fits(wrapper.outerHTML)) {
+          pages.push({ ...page(''), tocStart: start, tocEnd: i })
+          list.replaceChildren(row); start = i
+        }
+      }
+      pages.push({ ...page(''), tocStart: start, tocEnd: entries.length })
       continue
     }
     if (section.kind) { pages.push(page('')); continue }
     const template = document.createElement('template')
-    template.innerHTML = safeMarkdown(section.markdown, section.live) + (section.source ? SOURCE_CARD_HTML : '') + (section.process ? processRecordHtml(section.process, section.id, section.processExpanded) : '')
+    if (section.plainText !== undefined) {
+      const heading = document.createElement('h1')
+      heading.className = 'front-opening'
+      heading.textContent = section.title
+      template.content.append(heading)
+      for (const paragraph of section.plainText.trim().split(/\n\s*\n/)) {
+        if (!paragraph) continue
+        const p = document.createElement('p')
+        p.textContent = paragraph
+        template.content.append(p)
+      }
+    } else {
+      template.innerHTML = safeMarkdown(section.markdown, section.live) + (section.source ? SOURCE_CARD_HTML : '') + (section.process ? processRecordHtml(section.process, section.id, section.processExpanded) : '')
+    }
+    if (section.chapter) {
+      const opener = template.content.querySelector('h1')
+      if (opener) {
+        const numeral = document.createElement('span')
+        numeral.className = 'chapter-number'; numeral.textContent = 'Chapter ' + section.chapter
+        opener.classList.add('chapter-opening'); opener.prepend(numeral)
+      }
+    }
+    template.content.querySelectorAll('p + p').forEach(p => p.classList.add('indented'))
     let current = ''
     const blocks = Array.from(template.content.children)
     for (const [blockIndex, block] of blocks.entries()) {
@@ -219,6 +274,16 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
       let start = 0
       const total = fragmentLength(block)
       if (!total) continue
+      // Use the same offsets as sliceElement, including explicit line breaks.
+      const textBlock = block.cloneNode(true) as Element
+      textBlock.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
+      const text = textBlock.textContent || ''
+      const paragraphLines = (from: number, to: number) => {
+        probe.innerHTML = sliceElement(block, from, to)
+        const p = probe.firstElementChild as HTMLElement
+        const leading = parseFloat(getComputedStyle(p).lineHeight)
+        return leading > 0 ? Math.round(p.getBoundingClientRect().height / leading) : 0
+      }
       while (start < total) {
         const rest = sliceElement(block, start, total)
         if (fits(current + rest)) { current += rest; break }
@@ -230,7 +295,22 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
         }
         if (low === start && current) { pages.push(page(current)); current = ''; continue }
         // Tiny viewports still make forward progress; the reader has a minimum paper height.
-        const end = Math.max(start + 1, low)
+        let end = block.matches('p,blockquote,ul,ol') ? breakBeforeWord(text, start, low) : low
+        if (start === end && current) { pages.push(page(current)); current = ''; continue }
+        if (end <= start) end = Math.max(start + 1, low)
+        if (block.tagName === 'P' && end < total) {
+          if (current && paragraphLines(start, end) === 1) { pages.push(page(current)); current = ''; continue }
+          if (paragraphLines(end, total) === 1 && paragraphLines(start, end) >= 3) {
+            let lo = start, hi = end
+            while (lo < hi) {
+              const mid = Math.ceil((lo + hi) / 2)
+              if (paragraphLines(mid, total) >= 2) lo = mid
+              else hi = mid - 1
+            }
+            const balanced = breakBeforeWord(text, start, lo)
+            if (balanced > start) end = balanced
+          }
+        }
         current += sliceElement(block, start, end)
         pages.push(page(current)); current = ''; start = end
       }
