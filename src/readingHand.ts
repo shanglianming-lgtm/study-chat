@@ -3,6 +3,7 @@ import type { HandAction } from './Correspondence'
 import type { DeskReading, PageSide } from './deskReading'
 import { INK_SPELL } from './inkSpell'
 import { createPageBrush } from './pageBrush'
+import { handViewport } from './handViewport'
 
 export type HandSignal = { action: HandAction; side: PageSide; u: number; v: number; width?: number; seq: number }
 export function readingHand(avatar: THREE.Group, software = false) {
@@ -25,6 +26,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
     poses = ['point', 'stroke', 'pinch', 'rewind', 'sweep'] as const
   hand.scale.setScalar(.76) // Keep the character branch's page-hand framing.
   const meshes: THREE.Mesh[] = []
+  const bounds = new THREE.Box3(), cropCamera = new THREE.PerspectiveCamera()
   avatar.traverse((obj) => {
     if (
       !(obj instanceof THREE.SkinnedMesh) ||
@@ -146,6 +148,8 @@ export function readingHand(avatar: THREE.Group, software = false) {
       transparent: true,
       forceSinglePass: true,
     })
+    geo.computeBoundingBox() // Includes every absolute morph target.
+    bounds.union(geo.boundingBox!)
     const mesh = new THREE.Mesh(geo, mat)
     mesh.frustumCulled = false
     hand.add(mesh)
@@ -202,7 +206,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
         renderer.domElement.setAttribute('aria-hidden', 'true')
         renderer.domElement.hidden = true
         document.body.append(renderer.domElement)
-        renderer.setSize(w, h, false)
+        renderer.setSize(32, 32)
         // Warm the shader/buffers when the reader opens, not on the click.
         // Otherwise first-paint compilation can eat the entire lateral pass.
         for (const mesh of meshes) (mesh.material as THREE.MeshStandardMaterial).opacity = 0
@@ -222,13 +226,6 @@ export function readingHand(avatar: THREE.Group, software = false) {
       if (lastPaint && paintClock - lastPaint > 60 && renderer.getPixelRatio() > .35)
         renderer.setPixelRatio(Math.max(.35, renderer.getPixelRatio() * .6))
       lastPaint = paintClock
-      renderer.domElement.hidden = false
-      if (
-        renderer.domElement.clientWidth !== w ||
-        renderer.domElement.width !== Math.floor(w * renderer.getPixelRatio()) ||
-        renderer.domElement.height !== Math.floor(h * renderer.getPixelRatio())
-      )
-        renderer.setSize(w, h, false)
       const action = signal.action,
         arc = Math.sin(Math.PI * t),
         ease = THREE.MathUtils.smootherstep(t, 0, 0.46) * (1 - THREE.MathUtils.smootherstep(t, 0.57, 1))
@@ -252,8 +249,17 @@ export function readingHand(avatar: THREE.Group, software = false) {
             : poses[i] === action ? arc : 0
         })
       }
+      hand.updateMatrixWorld(true)
+      const rect = handViewport(bounds, hand.matrixWorld, camera, w, h)
+      renderer.domElement.hidden = !rect
+      if (!rect) return
+      renderer.domElement.style.transform = `translate(${rect.x}px,${rect.y}px)`
+      if (renderer.domElement.style.width !== `${rect.width}px` || renderer.domElement.style.height !== `${rect.height}px`)
+        renderer.setSize(rect.width, rect.height)
+      cropCamera.copy(camera)
+      cropCamera.setViewOffset(w, h, rect.x, rect.y, rect.width, rect.height)
       renderer.clear()
-      renderer.render(scene, camera)
+      renderer.render(scene, cropCamera)
     },
     hide,
     dispose() {
