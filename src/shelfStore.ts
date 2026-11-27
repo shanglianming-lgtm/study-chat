@@ -365,8 +365,7 @@ export async function submit(id: string, retryId?: string) {
   const take = crypto.randomUUID(),
     modelRef = b.main,
     effort = selectedEffort(m.source, m.id, b.effort)
-  let ink = '',
-    started = false
+  let ink = ''
   jobs.set(id, signaler)
   let currentInput: WireMessage['content'] = q
   try {
@@ -400,22 +399,12 @@ export async function submit(id: string, retryId?: string) {
     if (kind === '思路摘要' && notes.at(-1)?.kind === kind)
       notes[notes.length - 1] = { kind, text: notes.at(-1)!.text + text }
     else notes.push({ kind, text })
-    if (!old || started) patchTurn(id, turnId, { notes: notes.slice() })
+    if (!old) patchTurn(id, turnId, { notes: notes.slice() })
   }
   const write = (delta: string) => {
     if (!delta) return
-    started = true
     ink += delta
-    patchTurn(id, turnId, {
-      take,
-      a: ink,
-      state: 'writing',
-      notes: notes.slice(),
-      model: modelRef,
-      effort,
-      error: undefined,
-      ...(old ? { output: [] } : {}),
-    })
+    if (!old) patchTurn(id, turnId, { a: ink, notes: notes.slice() })
   }
   try {
     const keys = await planContext(b, q, files, signal),
@@ -525,7 +514,7 @@ export async function submit(id: string, retryId?: string) {
       serial: numbered.serial,
       turns: current.turns.map((t) =>
         t.id === turnId
-          ? { ...t, a: ink, state: 'done', output, notes: notes.slice(), error: undefined }
+          ? { ...t, take, a: ink, state: 'done', output, notes: notes.slice(), model: modelRef, effort, error: undefined }
           : t
       ),
     })
@@ -542,7 +531,6 @@ export async function submit(id: string, retryId?: string) {
     }
   } catch (e) {
     if (old) {
-      patchTurn(id, turnId, { ...old })
       if (!signal.aborted) report(e)
     } else
       patchTurn(id, turnId, {
