@@ -14,28 +14,34 @@ export function readingLight(software: boolean) {
   // Keep the prescribed source intensity; expose only its small contribution.
   const material = new THREE.MeshLambertMaterial({
     color: new THREE.Color(.003, .003, .003),
-    transparent: true, opacity: .08, blending: THREE.AdditiveBlending,
+    transparent: true, opacity: .16, blending: THREE.AdditiveBlending,
     depthWrite: false,
   })
+  const cropUV = { value: new THREE.Vector4(0, 0, 1, 1) }
+  const normalSign = { value: 1 }
   material.onBeforeCompile = shader => {
+    shader.uniforms.lightCrop = cropUV
+    shader.uniforms.lightNormalSign = normalSign
     shader.vertexShader = 'varying vec2 vLightUV;\n' + shader.vertexShader.replace(
       '#include <begin_vertex>', '#include <begin_vertex>\nvLightUV = uv;')
-    shader.fragmentShader = 'varying vec2 vLightUV;\n' + shader.fragmentShader.replace(
+    shader.fragmentShader = 'varying vec2 vLightUV; uniform vec4 lightCrop; uniform float lightNormalSign;\n' + shader.fragmentShader
+      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal *= lightNormalSign;')
+      .replace(
       '#include <opaque_fragment>', `
-        // Expose the local, physically evaluated PointLight contribution,
-        // not a constant-alpha rectangle. Feather the sampled safe-area
-        // boundary into the already-lit physical paper underneath.
-        float irradiance = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
-        float edge = min(min(vLightUV.x, 1.0-vLightUV.x), min(vLightUV.y, 1.0-vLightUV.y));
-        diffuseColor.a *= smoothstep(0.025, 0.35, irradiance) * smoothstep(0.0, 0.08, edge);
+        // Retain actual PointLight irradiance, including its weak values.
+        // Feather only the small sampled region, never threshold it to black.
+        vec2 sampleUV = (vLightUV - lightCrop.xy) / lightCrop.zw;
+        float edge = min(min(sampleUV.x, 1.0-sampleUV.x), min(sampleUV.y, 1.0-sampleUV.y));
+        diffuseColor.a *= smoothstep(0.0, 0.22, edge);
         #include <opaque_fragment>`)
   }
-  material.customProgramCacheKey = () => 'scoped-real-point-light-v1'
+  material.customProgramCacheKey = () => 'scoped-real-point-light-v2'
   const leaf = new THREE.Mesh(geometry, material)
   scene.add(leaf, light)
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, .01, 3)
   const center = new THREE.Vector3(), origin = new THREE.Vector3()
   const right = new THREE.Vector3(), up = new THREE.Vector3(), normal = new THREE.Vector3()
+  const palmUV = new THREE.Vector3(), emitterOffset = new THREE.Vector3()
   const basis = new THREE.Matrix4()
   let renderer: THREE.WebGLRenderer | undefined, unavailable = false
   let width = 0, height = 0
@@ -56,14 +62,23 @@ export function readingLight(software: boolean) {
       const canvas = renderer.domElement
       const projection = paper.closest<HTMLElement>('.desk-surface')?.style.getPropertyValue('--desk-' + side)
       if (!projection) { hide(); return }
-      canvas.style.transform = projection
       const w = paper.offsetWidth, h = paper.offsetHeight
       if (!w || !h) { hide(); return }
-      if (w !== width || h !== height) { renderer.setSize(w, h); width = w; height = h }
       rig.worldPoint(side, 0, 1, 0, origin)
       rig.worldPoint(side, 1, 1, 0, right).sub(origin)
       rig.worldPoint(side, 0, 0, 0, up).sub(origin)
       const paperWidth = right.length(), paperHeight = up.length()
+      rig.pagePoint(side, palm, palmUV)
+      // Scope the diffuse sampling around the actual emitter rather than
+      // compositing another whole-leaf texture on software GPUs.
+      const rx = .045 / paperWidth, ry = .045 / paperHeight
+      const u0 = Math.max(0, palmUV.x - rx), u1 = Math.min(1, palmUV.x + rx)
+      const v0 = Math.max(0, palmUV.y - ry), v1 = Math.min(1, palmUV.y + ry)
+      if (u1 <= u0 || v1 <= v0) { hide(); return }
+      cropUV.value.set(u0, 1 - v1, u1 - u0, v1 - v0)
+      const cw = Math.ceil((u1 - u0) * w), ch = Math.ceil((v1 - v0) * h)
+      if (cw !== width || ch !== height) { renderer.setSize(cw, ch); width = cw; height = ch }
+      canvas.style.transform = projection + ` translate(${u0 * w}px, ${v0 * h}px)`
       right.normalize(); up.normalize()
       normal.crossVectors(right, up).normalize()
       rig.worldPoint(side, .5, .5, 0, center)
@@ -71,11 +86,16 @@ export function readingLight(software: boolean) {
       leaf.quaternion.setFromRotationMatrix(basis.makeBasis(right, up, normal))
       leaf.scale.set(paperWidth, paperHeight, 1)
       light.position.copy(palm).addScaledVector(normal, -.01)
+      emitterOffset.copy(light.position).sub(center)
+      // Thin paper can be exported with a mirrored anchor. Match its lit
+      // face to the actual emitter without changing its world location.
+      normalSign.value = Math.sign(emitterOffset.dot(normal)) || 1
+      if (import.meta.env.DEV) canvas.dataset.lightHeight = String(emitterOffset.dot(normal))
       camera.position.copy(center).add(normal)
       camera.up.copy(up)
       camera.lookAt(center)
-      camera.left = -paperWidth / 2; camera.right = paperWidth / 2
-      camera.top = paperHeight / 2; camera.bottom = -paperHeight / 2
+      camera.left = (u0 - .5) * paperWidth; camera.right = (u1 - .5) * paperWidth
+      camera.top = (.5 - v0) * paperHeight; camera.bottom = (.5 - v1) * paperHeight
       camera.updateProjectionMatrix()
       canvas.hidden = false
       renderer.render(scene, camera)
