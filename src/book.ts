@@ -215,6 +215,11 @@ export function paginate(sections: Section[], probe: HTMLElement, height: number
         for (const text of [entry.chapter || '', entry.title, '99']) {
           const cell = document.createElement('span'); cell.textContent = text; row.append(cell)
         }
+        const titleCell = row.children[1]
+        titleCell.className = 'contents-title'
+        const titleText = document.createElement('span')
+        titleText.textContent = entry.title
+        titleCell.replaceChildren(titleText)
         list.append(row)
         if (i > start && !fits(wrapper.outerHTML)) {
           pages.push({ ...page(''), tocStart: start, tocEnd: i })

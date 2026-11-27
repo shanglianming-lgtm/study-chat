@@ -8,7 +8,10 @@
 .app .dialogue-spread .paper {
   overflow: visible;
   color: var(--book-ink);
-  font: 400 var(--book-size)/1.45 var(--book-type);
+  font: 400 var(--book-size)/1.55 var(--book-type);
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  font-synthesis: none;
 }
 .memory-print,
 .conversation-print {
@@ -33,7 +36,7 @@
   color: inherit;
 }
 .app .dialogue-spread h1 {
-  font: 400 2.07em/1.08 var(--book-type);
+  font: 400 1.8em/1.22 var(--book-type);
   text-align: center;
   margin: 0;
   overflow-wrap: anywhere;
@@ -46,14 +49,16 @@
   margin-top: 1.65em;
 }
 .app .memory-print h2 {
-  font: italic 400 1.22em/1.2 var(--book-type);
-  margin: 0 0 0.38em;
+  font: 400 .86em/1.4 var(--book-type);
+  font-variant-caps: small-caps;
+  letter-spacing: .09em;
+  margin: 0 0 .65em;
 }
 .app .module-excerpt {
   display: block;
   width: 100%;
   font: inherit;
-  line-height: 1.48;
+  line-height: 1.7;
   color: inherit;
   text-align: justify;
   padding: 0;
@@ -67,7 +72,7 @@
 .chapter-fixed {
   flex: none;
   min-height: 3em;
-  padding-block: clamp(5px, 8%, 34px) 0.9em;
+  padding-block: clamp(5px, 8%, 34px) 1.3em;
   display: grid;
   align-content: center;
 }
@@ -79,7 +84,7 @@
 }
 .chapter-designation {
   text-align: center;
-  font: 400 .77em/1.25 var(--book-type);
+  font: 400 .67em/1.4 var(--book-type);
   font-variant-caps: small-caps;
   letter-spacing: .12em;
   margin-bottom: .8em;
@@ -104,11 +109,13 @@
   padding: 0 0.06em 0.7em 0;
 }
 .bound-turn + .bound-turn {
-  margin-top: 1.6em;
+  margin-top: 2em;
+  padding-top: 1.25em;
+  border-top: 1px solid #776e6126;
 }
 .app .question-line {
-  margin: 0.25em 0 0.77em;
-  font: 600 1.12em/1.35 var(--book-type);
+  margin: .25em 0 1.1em;
+  font: 400 1em/1.65 var(--book-type);
   overflow-wrap: anywhere;
 }
 .question-line .set-ink p {
@@ -116,17 +123,21 @@
 }
 .answer-lines {
   position: relative;
-  font: 400 1em/1.43 var(--book-type);
+  font: 400 1em/1.65 var(--book-type);
   overflow-wrap: anywhere;
 }
 .answer-lines:lang(zh),
 .set-ink:lang(zh) {
-  line-height: 1.6;
+  line-height: 1.72;
 }
+.app .speaker-heading { font: 400 .72em/1.5 var(--book-type); font-variant-caps: small-caps; letter-spacing: .1em; text-align: start; margin: 0 0 .55em; color: #706250; }
+.speaker-heading span { letter-spacing: .02em; }
 .app .set-ink p {
   margin: 0;
   text-align: justify;
   text-indent: 0;
+  line-break: strict;
+  hyphens: auto;
 }
 .app .answer-lines p + p {
   text-indent: 1.14em;
@@ -210,9 +221,9 @@
 }
 .quill {
   border: 1px solid transparent;
-  border-radius: 9px;
-  opacity: 0;
-  pointer-events: none;
+  border-radius: 0;
+  opacity: 1;
+  pointer-events: auto;
   transition:
     opacity 0.19s,
     border-color 0.19s;
@@ -225,8 +236,9 @@
 .quill-zone:focus-within .quill {
   opacity: 1;
   pointer-events: auto;
-  border-color: #71654568;
-  background: #efe8d71a;
+  border-color: #b4a07933;
+  background: #d2bc8c18;
+  box-shadow: inset 0 2px 4px #6c53242b, inset 0 -1px #fff9e980;
 }
 .app .quill .paper-field {
   resize: none;
@@ -244,8 +256,10 @@
 }
 .quill textarea::placeholder {
   color: #776b57;
-  font-style: italic;
+  font-style: normal;
 }
+.quill-tools { opacity: 0; pointer-events: none; transition: opacity .19s; }
+.quill-zone:is(:hover,:focus-within,[data-writing]) .quill-tools { opacity: 1; pointer-events: auto; }
 .quill-tools {
   display: flex;
   align-items: center;
@@ -347,11 +361,12 @@
 .detail-words {
   left: 9%;
   right: 9%;
-  top: clamp(4%, calc(var(--anchor) * 100% - 0.9em), calc(96% - var(--float-height, 50%)));
-  max-height: 51%;
+  max-height: min(51%, calc(var(--float-room) * 100% - 4em));
   display: flex;
   flex-direction: column;
 }
+.detail-words[data-placement='below'] { top: calc(var(--anchor) * 100% + 2.5em); }
+.detail-words[data-placement='above'] { top: max(4%, calc(var(--anchor) * 100% - var(--float-height, 50%) - 2.5em)); }
 .raised-copy {
   overflow: auto;
   overscroll-behavior: contain;
@@ -379,7 +394,7 @@
 }
 .action-words {
   left: clamp(8%, calc(var(--ink-x) * 100% - 18%), 56%);
-  top: calc(var(--anchor) * 100% - 1.5em);
+  top: max(4%, calc(var(--anchor) * 100% - var(--float-height, 2em) - 1.5em));
   white-space: nowrap;
 }
 .raised-words::before {
@@ -398,8 +413,14 @@
 }
 .memory-print[data-muted],
 .conversation-print[data-muted] {
-  opacity: 0.16;
+  opacity: 1;
 }
+.memory-print[data-muted] > h1,
+.memory-print[data-muted] section:not(:has(.ink-selected)),
+.conversation-print[data-muted] .chapter-fixed,
+.conversation-print[data-muted] .quill-zone,
+.conversation-print[data-muted] .bound-turn:not(:has(.ink-selected)) { opacity: .62; }
+.ink-selected { text-decoration: underline; text-decoration-color: #9a7544; text-underline-offset: .23em; text-decoration-thickness: 1px; }
 .word-actions {
   display: flex;
   gap: 1em;

@@ -209,11 +209,13 @@ function AnswerInk({
 }
 function Entry({
   turn,
+  number,
   gest,
   motion,
   open,
 }: {
   turn: Turn
+  number: number
   gest: Gesture
   motion: boolean
   open: (f: Float, el: Element) => void
@@ -265,6 +267,7 @@ function Entry({
   return (
     <section className="bound-turn" data-turn={turn.id}>
       <div className="question-line" {...events(true)}>
+        <h2 className="speaker-heading">Question {String(number).padStart(2, '0')} <span>· 问</span></h2>
         <InkText
           user
           value={q.value}
@@ -275,6 +278,7 @@ function Entry({
         />
       </div>
       <div className="answer-lines" {...events(false)}>
+        <h2 className="speaker-heading">Reply <span>· 答</span></h2>
         {ghost && (
           <div className="receding-ink" aria-hidden inert>
             {ghost}
@@ -325,6 +329,7 @@ function Composer({
   return (
     <div
       className="quill-zone"
+      data-writing={!!book.draft || !!book.pending.length || busy || undefined}
       onClick={(e) => {
         if (e.target === e.currentTarget) field.current?.focus()
       }}
@@ -351,7 +356,7 @@ function Composer({
           inputRef={field}
           value={book.draft}
           aria-label="写下你的问题"
-          placeholder="Write a question…"
+          placeholder={book.turns.length ? '续写一个问题……' : '在此写下第一个问题……'}
           autoComplete="off"
           onPointerDown={() => {
             drag.current = false
@@ -507,6 +512,12 @@ export default function Correspondence({
   useEffect(() => {
     setFloat(null)
   }, [side, book.id])
+  useLayoutEffect(() => {
+    const origin = anchor.current
+    if (!float || !origin) return
+    origin.classList.add('ink-selected')
+    return () => origin.classList.remove('ink-selected')
+  }, [float])
   useEffect(() => {
     if (!float) return
     const close = (event: PointerEvent) => {
@@ -669,8 +680,8 @@ export default function Correspondence({
             aria-label="对话正文"
           >
             <div ref={body} className="flowing-text">
-              {book.turns.map((t) => (
-                <Entry key={t.id} turn={t} gest={gest} motion={motion} open={show} />
+              {book.turns.map((t, i) => (
+                <Entry key={t.id} turn={t} number={i + 1} gest={gest} motion={motion} open={show} />
               ))}
             </div>
           </div>
@@ -695,10 +706,12 @@ export default function Correspondence({
               ((isMenu && !isProcess) || float.kind === 'undo' ? 'action-words' : 'detail-words')
             }
             role="dialog"
+            data-placement={float.y < .5 ? 'below' : 'above'}
             aria-label={isMenu ? '浮字操作' : isProcess ? '本轮过程' : '浮起的文字'}
             style={
               {
                 '--anchor': Math.min(0.93, Math.max(0.05, float.y)),
+                '--float-room': float.y < .5 ? 1 - Math.max(.05, float.y) : Math.min(.93, float.y),
                 '--ink-x': Math.max(0.26, Math.min(0.68, float.x)),
               } as CSSProperties
             }

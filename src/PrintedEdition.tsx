@@ -145,9 +145,9 @@ export default function PrintedEdition({
     if (page) remember(page)
     setPageIndex(index)
   }, [pages, remember, single])
-  function begin(direction: number, event?: ReactPointerEvent<HTMLDivElement>) {
+  function begin(direction: number, event?: ReactPointerEvent<HTMLDivElement>, destination?: number) {
     if (!active || turn.current) return
-    const next = nextLeaf(direction)
+    const next = destination ?? nextLeaf(direction)
     if (next === pageIndex) return
     if (!event && matchMedia('(prefers-reduced-motion: reduce)').matches) { commit(next); return }
     const leaves = Array.from(spreadRef.current!.querySelectorAll<HTMLElement>(':scope > .paper'))
@@ -292,10 +292,13 @@ export default function PrintedEdition({
     return () => window.removeEventListener('keydown', key)
   }, [active, flip])
   function go(id: string) {
+    if (!active || turn.current) return
     const n = pageForSection(pages, id)
-    cancelTurn()
-    remember(pages[n])
-    setPageIndex(single ? n : n - (n % 2))
+    const next = single ? n : n - (n % 2)
+    if (next === pageIndex) return
+    // A contents entry turns the physical sheet to its destination, rather
+    // than replacing the ink abruptly. Reduced motion uses begin's instant path.
+    begin(next > pageIndex ? 1 : -1, undefined, next)
   }
   const startIndex = single && !deskRig ? shown : shown - (shown % 2)
   function leaf(index: number) {
@@ -321,7 +324,7 @@ export default function PrintedEdition({
                   .map((s) => (
                     <button key={s.id} onClick={() => go(s.id)}>
                       <span className="contents-numeral">{s.chapter}</span>
-                      <span>{s.title}</span>
+                      <span className="contents-title"><span>{s.title}</span></span>
                       <span className="contents-folio">{pages[pageForSection(pages, s.id)]?.folio}</span>
                     </button>
                   ))}
@@ -331,7 +334,9 @@ export default function PrintedEdition({
             <BookFrontMatter
               kind={p.kind}
               book={book}
+              library={library}
               onEdit={setEditing}
+              onOpenConversation={() => go('correspondence')}
             />
           ) : (
             <div className="manuscript-text" dangerouslySetInnerHTML={{ __html: p?.html || '' }} />
