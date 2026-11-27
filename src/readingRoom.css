@@ -39,9 +39,9 @@
 .ink-debug-panel output { float: right; }
 .ink-debug-panel button { font: inherit; color: inherit; background: #51422d; border: 1px solid #806c48; border-radius: 3px; padding: 3px 6px; margin: 3px 4px 3px 0; cursor: pointer; }
 .ink-debug-panel small { color: #b9ac92; margin-top: 5px; }
-.ink-debug-sample { padding-top: 4em; }
+.ink-debug-sample { padding-top: 4em; container-type: inline-size; }
 .ink-debug-caption { font: 10px/1.5 system-ui, sans-serif; color: #89795c; margin-bottom: 3em; letter-spacing: .05em; }
-.ink-debug-line { font: 400 1.2em/1.8 var(--book-type); white-space: nowrap; }
+.ink-debug-line { font: 400 min(1.2em, 7.5cqi)/1.8 var(--book-type); white-space: nowrap; }
 .book-scroll:has(.ink-debug-sample) :is(.flowing-text, .quill-zone) { display: none; }
 .dialogue-spread,
 .raised-sheet {
