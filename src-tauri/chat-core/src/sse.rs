@@ -26,7 +26,8 @@ impl Decoder {
                 self.event_bytes = 0;
             } else if let Some(data) = line.strip_prefix("data:") {
                 let data = data.strip_prefix(' ').unwrap_or(data);
-                self.event_bytes += data.len();
+                // Include field framing: even an empty data field stores a String.
+                self.event_bytes += line.len() + 1;
                 if self.event_bytes > 1024 * 1024 {
                     return Err("服务商返回的流式事件过大。".into());
                 }
@@ -55,5 +56,15 @@ mod tests {
         let mut parser = Decoder::default();
         assert!(parser.push(b"data: incomplete").unwrap().is_empty());
         assert!(parser.push(&vec![b'x'; 2 * 1024 * 1024]).is_err());
+    }
+
+    #[test]
+    fn empty_data_fields_cannot_grow_an_unfinished_event_without_limit() {
+        let mut parser = Decoder::default();
+        // Every field allocates a String even though its payload is empty.
+        // Split across small chunks to stay below the unfinished-line limit.
+        let chunk = b"data:\n".repeat(1024);
+        let error = (0..180).find_map(|_| parser.push(&chunk).err());
+        assert_eq!(error.as_deref(), Some("服务商返回的流式事件过大。"));
     }
 }
