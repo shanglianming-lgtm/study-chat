@@ -20,6 +20,7 @@ import { editVolume } from './shelfStore'
 import { volumeSections } from './volumeEdition'
 type PageTurn = TurnFaces & {
   source: number; next: number; grip: number; pointer: number | null
+  bookmark?: BookPage
   startX: number; width: number; target: number; landing: 0 | 1 | null
   wake?: () => void
 }
@@ -139,17 +140,18 @@ export default function PrintedEdition({
     }
     return next
   }, [pageIndex, pages, single])
-  const commit = useCallback((index: number) => {
+  const commit = useCallback((index: number, destination?: BookPage) => {
     const facing = pages[index + 1]
-    const page = !single && (pages[index]?.kind === 'blank' || facing?.kind === 'live') ? facing : pages[index]
+    const page = destination ?? (!single && (pages[index]?.kind === 'blank' || facing?.kind === 'live') ? facing : pages[index])
     if (page) remember(page)
     setPageIndex(index)
   }, [pages, remember, single])
   function begin(direction: number, event?: ReactPointerEvent<HTMLDivElement>, destination?: number) {
     if (!active || turn.current) return
-    const next = destination ?? nextLeaf(direction)
-    if (next === pageIndex) return
-    if (!event && matchMedia('(prefers-reduced-motion: reduce)').matches) { commit(next); return }
+    const next = destination === undefined ? nextLeaf(direction) : single ? destination : destination - destination % 2
+    const bookmark = destination === undefined ? undefined : pages[destination]
+    if (next === pageIndex) { if (bookmark) remember(bookmark); return }
+    if (!event && matchMedia('(prefers-reduced-motion: reduce)').matches) { commit(next, bookmark); return }
     const leaves = Array.from(spreadRef.current!.querySelectorAll<HTMLElement>(':scope > .paper'))
       .filter(leaf => deskRig || !single || leaf.getAttribute('aria-hidden') !== 'true')
     const front = direction > 0 ? leaves.at(-1) : leaves[0]
@@ -158,7 +160,7 @@ export default function PrintedEdition({
     const held = event && (event.target as Element).closest('.paper')
     const rect = (held || front).getBoundingClientRect()
     const pending: PageTurn = {
-      source: pageIndex, next, direction, front: snapshot(front), under: under && snapshot(under),
+      source: pageIndex, next, bookmark, direction, front: snapshot(front), under: under && snapshot(under),
       grip: event ? Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) : .5,
       pointer: event?.pointerId ?? null, startX: event?.clientX ?? 0, width: rect.width,
       target: event ? pullProgress(0, rect.width, single) : 1, landing: event ? null : 1,
@@ -241,7 +243,7 @@ export default function PrintedEdition({
       const settled = Math.abs(position - t.target) < .0009 && Math.abs(velocity) < .012
       paint(settled ? t.target : Math.max(0, Math.min(1, position)))
       if (settled && t.landing !== null) {
-        if (t.landing) commit(t.next)
+        if (t.landing) commit(t.next, t.bookmark)
         cancelTurn()
       } else if (!settled) frame = requestAnimationFrame(advance)
     }
@@ -295,10 +297,9 @@ export default function PrintedEdition({
     if (!active || turn.current) return
     const n = pageForSection(pages, id)
     const next = single ? n : n - (n % 2)
-    if (next === pageIndex) return
     // A contents entry turns the physical sheet to its destination, rather
     // than replacing the ink abruptly. Reduced motion uses begin's instant path.
-    begin(next > pageIndex ? 1 : -1, undefined, next)
+    begin(next > pageIndex ? 1 : -1, undefined, n)
   }
   const startIndex = single && !deskRig ? shown : shown - (shown % 2)
   function leaf(index: number) {
