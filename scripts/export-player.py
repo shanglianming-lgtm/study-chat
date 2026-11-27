@@ -194,7 +194,13 @@ def refine_joints(obj, rig):
         a, b = edge.vertices
         adjacency[a].add(b)
         adjacency[b].add(a)
-    original = [{g.group: g.weight for g in v.groups} for v in obj.data.vertices]
+    # Visibility/nail selection groups are not bone influences. In particular,
+    # the left-forearm visibility mask has weight 1 at the wrist; counting it
+    # in the four-influence budget drops real hand/thumb weights from glTF.
+    deform = {g.index for g in obj.vertex_groups if g.name in rig.data.bones
+              and rig.data.bones[g.name].use_deform}
+    original = [{g.group: g.weight for g in v.groups if g.group in deform}
+                for v in obj.data.vertices]
     weights = original
     mask = [max(max(0, 1 - (v.co - p).length / radius) ** 2
                 for p, radius in regions) for v in obj.data.vertices]
