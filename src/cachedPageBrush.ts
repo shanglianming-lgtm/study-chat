@@ -21,7 +21,7 @@ export function palmAffine(matrix: THREE.Matrix4, x: number, y: number) {
 // Hardware rendering and the articulated action gestures remain true 3D.
 export function cachedPageBrush(renderer: THREE.WebGLRenderer, scene: THREE.Scene, hand: THREE.Group,
   meshes: THREE.Mesh[], bounds: THREE.Box3, palm: THREE.Vector3, sample: ReturnType<typeof createPageBrush>) {
-  const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d')
+  const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return
   const span = bounds.getSize(new THREE.Vector3()), density = Math.min(3200, 1536 / span.z)
   canvas.width = Math.max(1, Math.ceil(span.x * density))
@@ -45,19 +45,27 @@ export function cachedPageBrush(renderer: THREE.WebGLRenderer, scene: THREE.Scen
     hand.scale.copy(scale)
     renderer.setPixelRatio(ratio)
   }
-  canvas.className = 'reading-hand reading-hand--cached'
-  canvas.setAttribute('aria-hidden', 'true')
-  canvas.hidden = true
-  Object.assign(canvas.style, { width: `${canvas.width}px`, height: `${canvas.height}px`, transformOrigin: '0 0', willChange: 'transform, opacity' })
-  document.body.append(canvas)
+  // An immutable decoded image avoids Canvas2D's own GPU mailbox/readback on
+  // software compositors. Decode during reader setup, not the first swipe.
+  const bitmapWidth = canvas.width, bitmapHeight = canvas.height
+  const layer = document.createElement('img')
+  layer.src = canvas.toDataURL('image/png')
+  void layer.decode().catch(() => {})
+  layer.alt = ''
+  layer.className = 'reading-hand reading-hand--cached'
+  layer.setAttribute('aria-hidden', 'true')
+  layer.draggable = false
+  layer.hidden = true
+  Object.assign(layer.style, { width: `${bitmapWidth}px`, height: `${bitmapHeight}px`, transformOrigin: '0 0', willChange: 'transform, opacity' })
+  document.body.append(layer)
   const plane = new THREE.Matrix4().set(
-    span.x / canvas.width, 0, 0, bounds.min.x,
+    span.x / bitmapWidth, 0, 0, bounds.min.x,
     0, 0, 1, 0,
-    0, span.z / canvas.height, 0, bounds.min.z,
+    0, span.z / bitmapHeight, 0, bounds.min.z,
     0, 0, 0, 1
   )
   let animation: Animation | undefined
-  function hide() { animation?.cancel(); animation = undefined; canvas.hidden = true }
+  function hide() { animation?.cancel(); animation = undefined; layer.hidden = true }
   return {
     play(signal: HandSignal, rig: DeskReading, camera: THREE.PerspectiveCamera, width: number, height: number, elapsed: number) {
       hide()
@@ -67,14 +75,14 @@ export function cachedPageBrush(renderer: THREE.WebGLRenderer, scene: THREE.Scen
         hand.updateMatrixWorld(true)
         const surface = new THREE.Matrix4().multiplyMatrices(hand.matrixWorld, plane)
         const matrix = paperProjection(camera, surface, width, height)
-        const affine = palmAffine(matrix, (palm.x - bounds.min.x) * canvas.width / span.x, (palm.z - bounds.min.z) * canvas.height / span.z)
+        const affine = palmAffine(matrix, (palm.x - bounds.min.x) * bitmapWidth / span.x, (palm.z - bounds.min.z) * bitmapHeight / span.z)
         frames.push({ offset: ms / INK_SPELL.duration, transform: `matrix(${affine.join(',')})`, opacity })
       }
-      canvas.hidden = false
-      animation = canvas.animate(frames, { duration: INK_SPELL.duration, fill: 'both' })
+      layer.hidden = false
+      animation = layer.animate(frames, { duration: INK_SPELL.duration, fill: 'both' })
       animation.currentTime = Math.max(0, elapsed)
     },
     hide,
-    dispose() { hide(); canvas.remove() },
+    dispose() { hide(); layer.remove() },
   }
 }
