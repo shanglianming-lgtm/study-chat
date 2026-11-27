@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { DeskReading, PageSide } from './deskReading'
 import { carryInk, inkLife, smoothstep, wakeInk, type InkGlyph, type InkPoint } from './inkLifecycle'
 
-type Glyph = InkGlyph & { range: Range; left: number; top: number; size: number; font: string }
+type Glyph = InkGlyph & { range: Range; left: number; top: number; width: number; height: number; size: number; font: string }
 type Options = { animate: boolean; paused?: boolean; debug?: boolean; ephemeral?: boolean }
 type Target = {
   host: HTMLElement; paper: HTMLElement; side: PageSide; options: Options; glyphs: Glyph[]
@@ -92,7 +92,40 @@ function paint(target: Target, now: number, reduced: boolean) {
   if (canvas.dataset.inkStates !== states) canvas.dataset.inkStates = states
   const hot = lives.some((life, i) => (life.phase === 1 || life.phase === 2) && visible(target, target.glyphs[i]))
   if (!hot && !target.painted) return
-  ctx.clearRect(0, 0, width, height)
+  if (!hot) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    canvas.hidden = true
+    canvas.width = canvas.height = 1
+    target.painted = false
+    return
+  }
+  // A full leaf backing texture made software compositing upload ~0.9M
+  // pixels per RAF even for three glowing letters. Paint only the live ink's
+  // small, quantized bounds; use paper-local coordinates inside that crop.
+  let left = width, top = height, right = 0, bottom = 0
+  target.glyphs.forEach((glyph, i) => {
+    if ((lives[i].phase !== 1 && lives[i].phase !== 2) || !visible(target, glyph)) return
+    left = Math.min(left, glyph.left - 34)
+    top = Math.min(top, glyph.top - 34)
+    right = Math.max(right, glyph.left + glyph.width * 1.2 + 34)
+    bottom = Math.max(bottom, glyph.top + glyph.height * 1.2 + 40)
+  })
+  left = Math.max(target.clip.left, Math.floor(left / 16) * 16)
+  top = Math.max(target.clip.top, Math.floor(top / 16) * 16)
+  right = Math.min(target.clip.right, Math.ceil(right / 16) * 16)
+  bottom = Math.min(target.clip.bottom, Math.ceil(bottom / 16) * 16)
+  const cropWidth = Math.max(1, right - left), cropHeight = Math.max(1, bottom - top)
+  const ratio = Math.min(window.devicePixelRatio || 1, 1.5)
+  if (canvas.width !== Math.ceil(cropWidth * ratio)) canvas.width = Math.ceil(cropWidth * ratio)
+  if (canvas.height !== Math.ceil(cropHeight * ratio)) canvas.height = Math.ceil(cropHeight * ratio)
+  canvas.style.left = left + 'px'
+  canvas.style.top = top + 'px'
+  canvas.style.width = cropWidth + 'px'
+  canvas.style.height = cropHeight + 'px'
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.setTransform(ratio, 0, 0, ratio, -left * ratio, -top * ratio)
   ctx.save()
   ctx.beginPath()
   ctx.rect(target.clip.left, target.clip.top, target.clip.right - target.clip.left, target.clip.bottom - target.clip.top)
@@ -153,6 +186,7 @@ function register(host: HTMLElement, side: PageSide, options: Options) {
   const canvas = document.createElement('canvas'), context = canvas.getContext('2d')
   if (!context) return () => {}
   canvas.className = 'spatial-ink-canvas'
+  canvas.width = canvas.height = 1
   canvas.hidden = true
   canvas.setAttribute('aria-hidden', 'true')
   canvas.inert = true
@@ -185,20 +219,14 @@ function register(host: HTMLElement, side: PageSide, options: Options) {
         if (!box.width || !box.height) continue
         const a = paperPoint(paper!, side, box.left, box.top), b = paperPoint(paper!, side, box.right, box.bottom)
         next.push({ text: segment, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2,
-          left: a.x, top: a.y, size, font, range, activatedAt: options.animate ? null : performance.now() - 1200 })
+          left: a.x, top: a.y, width: Math.max(1, b.x - a.x), height: Math.max(size, b.y - a.y),
+          size, font, range, activatedAt: options.animate ? null : performance.now() - 1200 })
       }
     }
     target.glyphs = carryInk(previous, next)
     target.width = paper!.offsetWidth
     target.height = paper!.offsetHeight
     target.clip = readingClip(host, paper!)
-    const ratio = Math.min(window.devicePixelRatio || 1, 1.5)
-    canvas.width = Math.ceil(target.width * ratio)
-    canvas.height = Math.ceil(target.height * ratio)
-    canvas.style.width = target.width + 'px'
-    canvas.style.height = target.height + 'px'
-    context!.setTransform(ratio, 0, 0, ratio, 0, 0)
-    target.painted = false
     highlightsDirty = true
     target.debugRevision = -1
     highlight(performance.now())

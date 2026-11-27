@@ -118,4 +118,9 @@ it('does not chase a line clipped above the scroll pane, and clips active drawin
   bookInk.frame(now + 200, rig, pose)
   expect(rect).toHaveBeenCalledWith(20, 30, 300, 350)
   expect(clip).toHaveBeenCalled()
+  const canvas = document.querySelector('canvas')!
+  expect(canvas.width).toBeLessThan(paper.offsetWidth)
+  expect(canvas.height).toBeLessThan(paper.offsetHeight)
+  expect(parseFloat(canvas.style.left)).toBeGreaterThanOrEqual(20)
+  expect(parseFloat(canvas.style.top)).toBeGreaterThanOrEqual(30)
 })
