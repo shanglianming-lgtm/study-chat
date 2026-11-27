@@ -1,9 +1,10 @@
-// One score for the physical hand, its wake, and the ink leaving the paper.
-// The hand must touch down before the letters move, not chase an open overlay.
+// The hovering cue leads; the book answers by lifting its own ink. `contact`
+// is the ink's response delay, not a physical fingertip touching the leaf.
 export const INK_SPELL = {
   contact: 200,
   brush: 460,
   rise: 760,
+  gesture: 880,
   duration: 1320,
   settle: 420,
 } as const
@@ -13,19 +14,17 @@ function ease(value: number) {
   return t * t * t * (t * (t * 6 - 15) + 10)
 }
 
-export function inkBrushPose(ms: number) {
-  const approach = ease(ms / INK_SPELL.contact)
-  // Continue across the line instead of stopping over a fingertip and then
-  // reversing toward the wrist. Ink delays also progress left-to-right.
-  const sweep = Math.max(0, Math.min(1, (ms - INK_SPELL.contact) / INK_SPELL.brush))
-  const lift = ease((ms - INK_SPELL.contact - INK_SPELL.brush - 40) / 500)
+export function inkHoverPose(ms: number) {
+  const pass = ease(ms / INK_SPELL.gesture)
+  const leave = ease((ms - 500) / 380)
   return {
-    // Drift only a little after the pass: an unbounded travel sent the palm
-    // off the right leaf while the ink was still rising under its fingertips.
-    travel: sweep - .5 + .08 * lift,
-    sweep,
-    lift,
-    height: .009 + .012 * (1 - approach) + .028 * lift,
-    opacity: ease(ms / 120) * (1 - ease((ms - INK_SPELL.duration + 180) / 180)),
+    pass,
+    leave,
+    // One small upward arc at the OUTER margin, not a wipe across the ink.
+    // The palm/forearm remain outside the leaf; only relaxed fingers enter.
+    edge: .99 - .035 * Math.sin(Math.PI * pass) + .10 * leave,
+    along: .055 - .13 * pass,
+    height: .022 + .016 * leave,
+    opacity: ease(ms / 100) * (1 - ease((ms - 560) / 320)),
   }
 }

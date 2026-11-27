@@ -404,11 +404,11 @@
   animation: brush-wake 940ms var(--spell-contact) cubic-bezier(.2, .65, .25, 1) both;
 }
 .ink-wake .thread { stroke-width: .65; }
-.ink-wake .haze { stroke-width: 7; filter: blur(4px); }
+.ink-wake .haze { stroke-width: 3; filter: blur(2px); }
 @keyframes brush-wake {
   0% { stroke-dashoffset: 1; opacity: 0; }
-  12% { opacity: .65; }
-  55% { stroke-dashoffset: 0; opacity: .45; }
+  12% { opacity: .4; }
+  55% { stroke-dashoffset: 0; opacity: .25; }
   100% { stroke-dashoffset: -.25; opacity: 0; }
 }
 @keyframes settle-ink {

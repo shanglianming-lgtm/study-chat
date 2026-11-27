@@ -19,14 +19,11 @@ export function readingHand(avatar: THREE.Group, software = false) {
     tip = joint('Index3_end').applyMatrix4(basis)
   const digits = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'],
     knuckles = digits.map((d) => joint(d + '1').applyMatrix4(basis))
-  const palm = knuckles[1].clone().lerp(knuckles[4], .5).multiplyScalar(.58)
-  palm.x += .012 // Carry the gesture on the little-finger edge of the palm.
-  const sweepPalm = createPageBrush(palm)
   const hand = new THREE.Group(),
     poses = ['point', 'stroke', 'pinch', 'rewind', 'sweep'] as const
   hand.scale.setScalar(.76) // Keep the character branch's page-hand framing.
   const meshes: THREE.Mesh[] = []
-  const bounds = new THREE.Box3(), cropCamera = new THREE.PerspectiveCamera()
+  const bounds = new THREE.Box3(), relaxedBounds = new THREE.Box3(), cropCamera = new THREE.PerspectiveCamera()
   avatar.traverse((obj) => {
     if (
       !(obj instanceof THREE.SkinnedMesh) ||
@@ -150,11 +147,17 @@ export function readingHand(avatar: THREE.Group, software = false) {
     })
     geo.computeBoundingBox() // Includes every absolute morph target.
     bounds.union(geo.boundingBox!)
+    relaxedBounds.union(new THREE.Box3().setFromBufferAttribute(
+      geo.morphAttributes.position[poses.indexOf('stroke')] as THREE.BufferAttribute))
     const mesh = new THREE.Mesh(geo, mat)
     mesh.frustumCulled = false
     hand.add(mesh)
     meshes.push(mesh)
   })
+  // Use the actual relaxed silhouette, not an extended index bone: no other
+  // fingertip should jut farther inward over the printed text.
+  const hoverTip = new THREE.Vector3(knuckles[2].x, 0, relaxedBounds.min.z)
+  const hover = createPageBrush(hoverTip)
   const scene = new THREE.Scene()
   const reduced = matchMedia('(prefers-reduced-motion: reduce)')
   scene.add(hand, new THREE.HemisphereLight(0xfff3d9, 0x87725f, 1.85))
@@ -214,7 +217,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
       }
       if (!signal) return
       const brush = signal.action === 'stroke'
-      const t = (now - start) / (brush ? INK_SPELL.duration : signal.action === 'sweep' ? 1000 : 850)
+      const t = (now - start) / (brush ? INK_SPELL.gesture : signal.action === 'sweep' ? 1000 : 850)
       if (t >= 1) {
         hide()
         return
@@ -231,7 +234,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
         ease = THREE.MathUtils.smootherstep(t, 0, 0.46) * (1 - THREE.MathUtils.smootherstep(t, 0.57, 1))
       let opacity = 1
       if (brush) {
-        opacity = sweepPalm(hand, rig, signal.side, signal.u, signal.v, signal.width ?? .36, now - start)
+        opacity = hover(hand, rig, signal.side, signal.v, now - start)
       } else {
         const slide = action === 'sweep' ? 0.46 : action === 'rewind' ? -0.18 : 0.025
         rig.worldPoint(signal.side, signal.u + slide * (0.48 - t), signal.v, action === 'point' ? 0.009 : 0.016, location)
@@ -241,6 +244,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
           action === 'rewind' ? 0.44 * Math.sin(2 * Math.PI * t) : 0.08 * arc, 'YXZ')
         hand.position.lerpVectors(entry, location, ease).sub(tip.clone().multiply(hand.scale).applyQuaternion(hand.quaternion))
       }
+      if (opacity < .001) { renderer.domElement.hidden = true; return }
       for (const mesh of meshes) {
         (mesh.material as THREE.MeshStandardMaterial).opacity = opacity
         mesh.morphTargetInfluences?.forEach((_, i, morphs) => {
