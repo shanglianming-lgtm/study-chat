@@ -213,6 +213,8 @@ export function readingHand(avatar: THREE.Group) {
         renderer.toneMapping = THREE.ACESFilmicToneMapping
         renderer.setPixelRatio(Math.min(1.25, window.devicePixelRatio || 1))
         renderer.domElement.className = 'reading-hand'
+        // Three's inline display:block would override hidden/reduced-motion CSS.
+        renderer.domElement.style.removeProperty('display')
         renderer.domElement.setAttribute('aria-hidden', 'true')
         document.body.append(renderer.domElement)
       }
