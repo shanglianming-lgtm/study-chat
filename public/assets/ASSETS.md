@@ -26,11 +26,21 @@ blender -b "书房建模/04-avatar/White_Dress_Avatar.blend" --python scripts/ex
 cp public/assets/models/White_Dress_Avatar.glb "书房建模/04-avatar/玩家角色.glb"
 ```
 
-The original editable Blender file and its proportions are preserved. The export
+The original editable Blender file is preserved. The export
 pass bakes the authored chestnut/umber brow and lash colours into RGBA textures
 (Blender's legacy colour-mix nodes are not portable), keeps the full smooth body
 and hand mesh, subdivides the face once, retains more garment folds, relaxes the
-rolled hem and exports opaque cotton with explicit roughness. Hair guides and
-UVs are unchanged. The resulting model is approximately 115k triangles / 7.8 MB,
-up from 57k / 4.8 MB. The page-hand is derived from that same skin and rig; its
+rolled hem and exports opaque cotton with explicit roughness. The second pass
+rounds the upper-arm silhouette, smooths elbow/wrist/knee skin-weight transitions and retains a denser
+joint surface. A shared rest-space warp defines the waist/hip and a gently
+tapered thigh/knee/calf silhouette, and rounds the deltoid and forearm while
+tapering the elbow and wrist. The bodice, straps and belt follow the same
+surface adjustments so they continue to fit the skin;
+head size, hands, feet, limb lengths and the skeleton remain unchanged.
+The authored three-guide hair locks gain rounded cross-sections and shorter,
+staggered, curved ends; fine longitudinal texture detail is baked into their
+existing UV layout, with a shallow tangent-space strand normal atlas. The final
+export is approximately 200k triangles / 11.6 MB (first pass: 115k / 7.8 MB;
+original: 57k / 4.8 MB). Hair is still hidden in first person. The page-hand is
+derived from that same skin and rig; its
 three-joint curls carry matching normal morphs and are framed smaller in reading.
