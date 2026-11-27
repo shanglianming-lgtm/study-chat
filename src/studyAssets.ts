@@ -5,7 +5,6 @@ import { HDRLoader } from 'three/addons/loaders/HDRLoader.js'
 type AssetTargets = {
   scene: THREE.Scene
   sofa: THREE.Group
-  glass: THREE.Object3D
   floor: THREE.MeshStandardMaterial
   wood: THREE.MeshStandardMaterial[]
   fabric: THREE.MeshStandardMaterial[]
@@ -16,6 +15,7 @@ type AssetTargets = {
 /** Local, credited CC0 assets. Geometry stays available if any asset fails. */
 export function loadStudyAssets(target: AssetTargets) {
   let disposed = false
+  let linen: THREE.Texture | undefined
   const loader = new THREE.TextureLoader()
   const ownedMaterials = new Set<THREE.Material>()
   const map = async (path: string, color = false, repeat = 1) => {
@@ -32,25 +32,17 @@ export function loadStudyAssets(target: AssetTargets) {
       material.map = color; material.normalMap = normal; material.normalScale.setScalar(strength)
       material.roughnessMap = roughness; material.roughness = .95; material.needsUpdate = true
     })
+    return color
   }
   const ready = Promise.allSettled([
     surface('oak', target.wood, .16),
     surface('floor', [target.floor], .22, 2.4),
-    surface('linen', target.fabric, .24, 2),
+    surface('linen', target.fabric, .24, 2).then(color => { linen = color }),
     target.software ? Promise.resolve() : new HDRLoader().loadAsync('/assets/lighting/garden.hdr').then(hdr => {
       if (disposed) { hdr.dispose(); return }
       hdr.mapping = THREE.EquirectangularReflectionMapping; target.textures.push(hdr)
       target.scene.environment = hdr; target.scene.environmentIntensity = .075
       target.scene.environmentRotation.y = -.2
-    }),
-    loader.loadAsync('/assets/lighting/garden.jpg').then(view => {
-      if (disposed) { view.dispose(); return }
-      view.colorSpace = THREE.SRGBColorSpace; view.mapping = THREE.EquirectangularReflectionMapping; target.textures.push(view)
-      // A separately tone-mapped panorama retains landscape detail without
-      // clamping the HDR illumination that the furniture receives.
-      target.scene.background = view; target.scene.backgroundIntensity = .85
-      target.scene.backgroundBlurriness = 0; target.scene.backgroundRotation.y = -.2
-      target.glass.visible = false
     }),
     new GLTFLoader().loadAsync('/assets/sofa/Sofa_01.gltf').then(gltf => {
       const model = gltf.scene
@@ -78,5 +70,5 @@ export function loadStudyAssets(target: AssetTargets) {
   ]).then(results => {
     if (!disposed) for (const result of results) if (result.status === 'rejected') console.warn('A local study asset could not load; procedural fallback retained.', result.reason)
   })
-  return { ready, dispose: () => { disposed = true; ownedMaterials.forEach(m => m.dispose()) } }
+  return { ready, get linen() { return linen }, dispose: () => { disposed = true; ownedMaterials.forEach(m => m.dispose()) } }
 }

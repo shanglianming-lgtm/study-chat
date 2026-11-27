@@ -4,10 +4,9 @@
 .physical-reading .book-stage{height:100%;min-height:440px;flex:1;width:100%;perspective:2200px}
 .physical-reading .spread{flex:1;min-height:365px;max-height:660px;width:100%;border:0;transform:rotateX(4deg);transform-origin:center bottom;overflow:visible;box-shadow:0 24px 35px #1e180f66,0 6px 8px #1c180f55;isolation:isolate}
 .physical-reading .spread:before{inset:-5px -8px calc(-1 * max(var(--left-stack,9px),var(--right-stack,9px)) - 6px);background:repeating-linear-gradient(92deg,#45513d88 0 1px,#61705455 1px 3px),linear-gradient(90deg,#303e2c,#647354 12%,#495b3f 50%,#697a57 95%,#34442d);border:1px solid #b4b18a;border-radius:7px 11px 12px 7px;box-shadow:inset 0 0 0 2px #30412e,inset 0 0 0 3px #a2a77a77;z-index:-1}
-.physical-reading .paper{z-index:1;flex-shrink:0;padding:0 6.5%;border-radius:3px 3px 7px 7px;background-color:#fcf4df;background-image:repeating-linear-gradient(94deg,#9c774904 0 1px,transparent 1px 4px),radial-gradient(ellipse at 40% 35%,#fffdf166,transparent 75%),linear-gradient(90deg,#f9f0db 85%,#d1c09b);box-shadow:inset 0 1px #fff9e8,inset 0 -1px #b9a77f55}
-.physical-reading .paper.recto{background-image:repeating-linear-gradient(94deg,#9c774904 0 1px,transparent 1px 4px),radial-gradient(ellipse at 60% 35%,#fffdf166,transparent 75%),linear-gradient(90deg,#d1c09b,#fcf4df 13%,#fcf4df 92%,#f3e6ca)}
-.physical-reading .paper.verso:after{width:22px;background:linear-gradient(90deg,transparent,#75614224)}
-.physical-reading .paper.recto:before{width:19px;background:linear-gradient(90deg,#75614220,transparent)}
+.physical-reading .paper{z-index:1;flex-shrink:0;padding:0 6.5%;border-radius:3px 3px 7px 7px;background-color:#f5f0e5;background-image:linear-gradient(to right,transparent 89%,#675d4e0a 97%,#675d4e14);box-shadow:inset 0 1px #fff9e8,inset 0 -1px #b9a77f55}
+.physical-reading .paper.recto{background-image:linear-gradient(to right,#675d4e12,#675d4e06 3%,transparent 8%)}
+.physical-reading .paper.verso:after,.physical-reading .paper.recto:before{display:none}
 .physical-reading .paper-body{margin-top:22px;margin-bottom:0;overflow:hidden;min-height:0;flex:1;container-type:size}
 .physical-reading .running-head{height:37px;font:8px/1.3 Georgia,var(--serif);letter-spacing:.8px;border-color:#b9a98455;color:#8c7c5d;gap:10px}
 .physical-reading .running-head span:last-child{font-size:6px;flex-shrink:0}
@@ -85,7 +84,7 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 .physical-reading .writing-leaf h1{font:400 clamp(20px,8cqh,30px)/1.35 Georgia,var(--serif);margin:8px 0!important;letter-spacing:1px!important}
 .writing-leaf>.in-page-composer{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:10px}
 .writing-leaf .in-page-composer h6{margin:0 0 10px;flex-shrink:0}
-.writing-leaf .paper-field{flex:1;min-height:40px;max-height:none;height:auto!important;scrollbar-width:none}
+.writing-leaf .paper-field{min-height:40px;scrollbar-width:thin}
 .writing-leaf .ink-actions{flex-shrink:0;margin-top:8px}
 .writing-leaf .colophon-note{display:none}
 .front-essay{font-size:12px;line-height:1.8}
@@ -132,3 +131,133 @@ select.paper-field{cursor:pointer;padding-right:8px;white-space:normal}
 @media(max-width:570px){.physical-reading .reader-surface{width:calc(100% - 26px);inset:91px 0 8px}.physical-reading .workspace{padding:12px 9px 20px}.physical-reading .book-stage{min-height:410px}.physical-reading .spread{min-height:330px;transform:rotateX(2deg)}.physical-reading .paper-body{margin-top:16px}.physical-reading .running-head{height:28px;padding-right:22px}.physical-reading .page-footer{height:30px}.title-leaf h1{font-size:29px}.front-essay h1{font-size:24px!important}.imprint-leaf dl{grid-template-columns:73px minmax(0,1fr);gap:6px 8px}.writing-bookmark{right:-6px;width:24px}.ink-actions>span{font-size:8px}}
 @media(max-height:600px){.physical-reading .reader-surface{top:64px;bottom:7px}.physical-reading .book-stage{min-height:330px}.physical-reading .spread{min-height:265px}.physical-reading .paper-body{margin-top:11px}.physical-reading .running-head{height:26px}.physical-reading .page-footer{height:26px}.title-leaf h1{font-size:26px;margin:10px 0!important}.title-leaf>.chapter-kicker{font-size:6px}.title-author{margin:3px auto;font-size:10px}.title-imprint .printer-flower{display:none}.title-imprint{font-size:8px}.half-title h1{font-size:25px;margin:14px 0!important}.half-title .printer-flower{margin:8px 0}.physical-reading .reading-hint{display:none}.physical-reading .reader-toolbar{margin-bottom:0}.ink-actions{margin-top:10px}.in-page-composer{margin-top:12px}}
 @media(prefers-reduced-motion:reduce){.physical-reading .spread,.physical-reading .notes-spread{transform:none}.leaf-host{display:none}.paper-field{transition:none}}
+
+/* In the room the GLB supplies the paper, boards and page edges. The DOM supplies the ink. */
+.app.physical-reading .reader-surface.desk-surface {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  animation: none;
+}
+.physical-reading .desk-surface :is(.workspace,.book-stage,.spread) {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  transform: none;
+  perspective: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+.physical-reading .desk-surface .spread { overflow: visible; }
+.desk-surface .spread::before,.desk-surface .page-stack,.desk-surface .book-ribbon,
+.desk-surface .paper::before,.desk-surface .paper::after { display: none; }
+.app.physical-reading .desk-surface .paper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--leaf-width);
+  height: var(--leaf-height);
+  padding: 0 calc(var(--leaf-width) * .085);
+  margin: 0;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  transform-origin: 0 0;
+}
+.desk-surface .spread > .verso,.desk-surface .on-left { transform: var(--desk-left); }
+.desk-surface .spread > :is(.recto,.notes-paper),.desk-surface .on-right { transform: var(--desk-right); }
+.desk-surface:not([data-ink-ready]) .spread { visibility: hidden; }
+.app.in-transit .reader-surface.desk-surface { visibility: visible; pointer-events: none; }
+.app.in-transit .reader-surface.flat-book { visibility: visible; pointer-events: none; }
+.flat-book[data-journey] .book-stage {
+  transform-origin: 50% 75%;
+  animation: take-seat-flat 760ms ease-in-out both;
+}
+.flat-book[data-journey="back"] .book-stage { animation-direction: reverse; }
+@keyframes take-seat-flat {
+  0% { opacity: 0; transform: perspective(1100px) translateY(7vh) rotateX(20deg) scale(.82); }
+  37% { opacity: 1; transform: perspective(1100px) translateY(4vh) rotateX(16deg) scale(.88); }
+  82% { transform: perspective(1100px) translateY(-.5vh) rotateX(1deg) scale(1.004); }
+  100% { opacity: 1; transform: none; }
+}
+.app .leave-desk {
+  position: fixed;
+  left: max(6px, env(safe-area-inset-left));
+  bottom: max(6px, env(safe-area-inset-bottom));
+  z-index: 30;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #f0e3bf;
+  background: radial-gradient(ellipse, #2e271fcc, transparent 73%);
+  border: 0;
+  opacity: 0;
+  transition: opacity 160ms;
+}
+.app .leave-desk:is(:hover,:focus-visible) { opacity: 1; }
+@media (hover: none) { .app .leave-desk { opacity: .8; } }
+@media (prefers-reduced-motion: reduce) {
+  .flat-book[data-journey] .book-stage { animation: none; }
+  .app .leave-desk { transition: none; }
+}
+.app.in-transit .desk-surface .spread > .verso { opacity: var(--ink-left,0); }
+.app.in-transit .desk-surface .spread > :is(.recto,.notes-paper) { opacity: var(--ink-right,0); }
+.desk-surface .spread[data-landing=left] > .verso,.desk-surface .spread[data-landing=right] > .recto { visibility: hidden; }
+.desk-surface .desk-underlay { pointer-events: none; }
+.desk-surface .desk-fold-shadow,.desk-surface .desk-turn-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: var(--leaf-height);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.desk-surface .desk-fold-shadow { width: var(--leaf-width); z-index: 1; }
+.desk-surface .desk-fold-shadow.on-right { background: linear-gradient(90deg,#574630,transparent var(--fold-reach)); }
+.desk-surface .desk-fold-shadow.on-left { background: linear-gradient(270deg,#574630,transparent var(--fold-reach)); }
+.desk-surface .desk-turn-strip {
+  z-index: 2;
+  overflow: hidden;
+  background-image: var(--paper-stock), linear-gradient(var(--shade-direction),var(--shade-start),var(--shade-end));
+  background-size: 145px 145px, 100% 100%;
+  background-blend-mode: multiply;
+}
+.physical-reading .flat-book .paper {
+  background-image: var(--paper-stock), linear-gradient(to var(--gutter-side,right),transparent 87%,#74635014);
+  background-size: 145px 145px, 100% 100%;
+  background-blend-mode: multiply;
+}
+.flat-book .recto { --gutter-side: left; }
+.flat-book .workspace:has(.spread[data-turning]) { overflow: clip; }
+.flat-turn-strip,.flat-turn-strip > div {
+  position: absolute; top: 0; left: 0; overflow: hidden;
+  transform-origin: 0 0; pointer-events: none;
+}
+.flat-turn-strip { z-index: 2; }
+.flat-turn-strip > div { inset: 0; }
+.flat-turn-strip .sheet-back { transform: scaleX(-1); transform-origin: center; }
+.flat-turn-strip[data-face=front] .sheet-back,.flat-turn-strip[data-face=back] .sheet-front { display: none; }
+.flat-turn-strip::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: #675746; opacity: var(--roll-shade,0);
+}
+.desk-turn-strip > div { position: absolute; inset: 0; overflow: hidden; }
+.desk-turn-strip .desk-strip-back { transform: scaleX(-1); }
+.desk-turn-strip[data-face=back] .desk-strip-front,.desk-turn-strip[data-face=front] .desk-strip-back { display: none; }
+.desk-surface .drawer-overlay { z-index: 30; }

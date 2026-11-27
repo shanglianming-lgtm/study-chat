@@ -12,6 +12,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource/crimson-text": "5.3.0",
     "@fontsource/noto-sans-sc": "5.2.5",
     "@fontsource/noto-serif-sc": "5.2.5",
     "@tauri-apps/api": "^2.5.0",
