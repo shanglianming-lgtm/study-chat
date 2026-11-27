@@ -108,7 +108,7 @@ function paint(target: Target, now: number, reduced: boolean) {
 function register(host: HTMLElement, side: PageSide, options: Options) {
   const paper = host.closest<HTMLElement>('.paper')
   // Keep the accessible printed text as a functional fallback on old engines.
-  if (!paper || typeof Highlight === 'undefined' || !CSS.highlights) return () => {}
+  if (!paper || !paper.closest('.desk-surface') || typeof Highlight === 'undefined' || !CSS.highlights) return () => {}
   const canvas = document.createElement('canvas'), context = canvas.getContext('2d')
   if (!context) return () => {}
   canvas.className = 'spatial-ink-canvas'

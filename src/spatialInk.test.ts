@@ -26,7 +26,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 function fixture() {
-  document.body.innerHTML = '<article class="paper"><div id="source" style="font:16px serif">ab<span class="ink-citation" data-ref="1">[1]</span></div></article>'
+  document.body.innerHTML = '<main class="desk-surface"><article class="paper"><div id="source" style="font:16px serif">ab<span class="ink-citation" data-ref="1">[1]</span></div></article></main>'
   const paper = document.querySelector<HTMLElement>('.paper')!, host = document.querySelector<HTMLElement>('#source')!
   Object.defineProperties(paper, { offsetWidth: { value: 400 }, offsetHeight: { value: 600 } })
   vi.spyOn(paper, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 400, 600))
@@ -71,4 +71,14 @@ it('settles immediately without a hand or embers for reduced motion', () => {
   expect(bookInk.frame(performance.now(), rig, pose)).toBeNull()
   expect(pose).not.toHaveBeenCalled()
   expect(bookInk.inspect()[0].glyphs.every(g => g.phase === 3)).toBe(true)
+})
+it('never masks printed replies or passages in the no-WebGL flat fallback', () => {
+  document.body.innerHTML = '<article class="paper"><div id="source">Readable fallback reply</div></article>'
+  const host = document.querySelector<HTMLElement>('#source')!
+  cleanups.push(bookInk.register(host, 'right', { animate: true }))
+  cleanups.push(bookInk.replay(host, 'right'))
+  expect(bookInk.inspect()).toEqual([])
+  expect(document.querySelector('canvas')).toBeNull()
+  expect(CSS.highlights.get('book-ink-pending')?.size || 0).toBe(0)
+  expect(host.textContent).toBe('Readable fallback reply')
 })
