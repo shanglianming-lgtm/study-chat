@@ -4,6 +4,7 @@ import Room from './Room'
 import type { Journey } from './RoomScene'
 import type { DeskReading } from './deskReading'
 import type { HandSignal } from './readingHand'
+import { InkDebugPanel } from './InkDebug'
 import { addBook, chooseBook, clearFault, useShelf } from './shelfStore'
 import ShelfInscription, { type ShelfAnchor } from './ShelfInscription'
 import type { Gesture } from './Correspondence'
@@ -42,7 +43,7 @@ export default function App() {
     }
   }
   const gest: Gesture = useCallback(
-    (action, side, u, v) => setHand({ action, side, u, v, seq: ++seq.current }),
+    (action, side, u, v, width) => setHand({ action, side, u, v, width, seq: ++seq.current }),
     []
   )
   const open = useCallback(() => {
@@ -160,6 +161,7 @@ export default function App() {
           inert={!!journey || management}
           aria-hidden={!!journey}
         >
+          {opened && rig && <InkDebugPanel />}
           <main className="workspace" onClick={(e) => void handleLink(e)}>
             <div className="book-stage">
               {ready ? (

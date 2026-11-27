@@ -16,6 +16,8 @@ import { folioScale } from './studyFurnishings'
 import { createDeskReading, type DeskReading } from './deskReading'
 
 import { readingHand, type HandSignal } from './readingHand'
+import { bookInk } from './spatialInk'
+import { readingLight } from './readingLight'
 import { createCursorGaze } from './cursorGaze'
 import { sampleRegisterFlight } from './registerFlight'
 import { deskJourneyMs, deskSeatPose } from './deskSeat'
@@ -121,6 +123,8 @@ export default function RoomScene(props: Props) {
     mount.append(canvas)
     const room = buildStudy(software),
       { scene, furnishings: f } = room
+    const inkLight = readingLight(software)
+    let inkWasActive = false
     const magic = createBookMagic()
     let finish: ReturnType<typeof finishFolio> | undefined
     let deskRig: DeskReading | null = null
@@ -427,7 +431,7 @@ export default function RoomScene(props: Props) {
           if (!folioMeshes.has(node)) meshes.push(node)
         })
         player = createPlayerAvatar(f.playerModel, insideEye.y)
-        handModel=readingHand(f.playerModel)
+        handModel=readingHand(f.playerModel, software)
         finish = finishFolio(renderer, scene, f.book, f.playerModel, room.linen)
         scene.add(f.playerModel, magic.dust)
         readBookPose(f.book, dock)
@@ -861,10 +865,23 @@ export default function RoomScene(props: Props) {
         f.openBook(follower.boardLift)
       }
       if(reading&&deskRig&&!kind&&!latest.current.managing){
+        const ink = handModel && bookInk.frame(performance.now(), deskRig,
+          (side, u, v, alpha) => handModel!.write(side, u, v, alpha, deskRig!))
+        if (ink) {
+          inkLight.draw(ink.paper, ink.side, ink.palm, deskRig)
+          lastHand = latest.current.hand?.seq ?? lastHand
+          inkWasActive = true
+        } else {
+          if (inkWasActive) { handModel?.endInk(); inkLight.hide(); inkWasActive = false }
         const next=latest.current.hand
         if(next&&next.seq!==lastHand){lastHand=next.seq;if(!reduced.matches)handModel?.play(next,now)}
+        }
         handModel?.draw(now,deskRig,camera,mount!.clientWidth,mount!.clientHeight)
-      }else handModel?.hide()
+      }else {
+        handModel?.hide()
+        bookInk.stop()
+        if (inkWasActive) { inkLight.hide(); inkWasActive = false }
+      }
       if (!dirty) return
       const elapsed = paused || document.hidden ? 0 : Math.min(0.1, (now - lastMagicPaint) / 1000)
       lastMagicPaint = now
@@ -930,6 +947,7 @@ export default function RoomScene(props: Props) {
       magic.dispose()
       sound.dispose()
       handModel?.dispose()
+      inkLight.dispose()
       deskRig?.dispose()
       finish?.dispose()
       doorway.dispose()

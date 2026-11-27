@@ -41,9 +41,12 @@ import { maintainReadingPosition } from './readingPosition'
 import { shouldSend } from './book'
 import { PaperField } from './BookFrontMatter'
 import type { PageSide } from './deskReading'
+import { INK_SPELL } from './inkSpell'
+import { bookInk } from './spatialInk'
+import { InkDebugSample } from './InkDebug'
 
 export type HandAction = 'point' | 'sweep' | 'stroke' | 'pinch' | 'rewind'
-export type Gesture = (action: HandAction, side: PageSide, u: number, v: number) => void
+export type Gesture = (action: HandAction, side: PageSide, u: number, v: number, width?: number) => void
 type Float = {
   side: PageSide
   x: number
@@ -55,6 +58,8 @@ type Float = {
   turn?: string
   user?: boolean
   file?: LeafFile
+  cue?: number
+  placement?: { y: number; below: boolean }
 }
 function paperPoint(el: Element, side: PageSide) {
   const sheet = el.closest('.paper') as HTMLElement
@@ -81,65 +86,6 @@ function paperPoint(el: Element, side: PageSide) {
   }
   const r = sheet.getBoundingClientRect()
   return { x: (x - r.left) / r.width, y: (y - r.top) / r.height }
-}
-function useFlow(target: string, animate: boolean, hold = false) {
-  const [value, setValue] = useState(() => (animate ? '' : target)),
-    [hot, setHot] = useState(0)
-  const current = useRef(value),
-    latest = useRef({ target, hold }),
-    frame = useRef(0),
-    cool = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  latest.current = { target, hold }
-  useEffect(() => {
-    if (!animate) {
-      current.current = target
-      setValue(target)
-      setHot(0)
-      return
-    }
-    if (!target.startsWith(current.current)) {
-      current.current = ''
-      setValue('')
-    }
-    if (hold || frame.current || current.current === target) return
-    let last = performance.now()
-    function tick(now: number) {
-      frame.current = 0
-      const { target, hold } = latest.current
-      if (hold) return
-      let n = current.current.length
-      if (!target.startsWith(current.current)) n = 0
-      const count = Math.min(
-        target.length - n,
-        Math.max(
-          1,
-          Math.floor((now - last) * 0.11),
-          target.length - n > 300 ? Math.ceil((target.length - n) / 16) : 1
-        )
-      )
-      if (count > 0) {
-        let end = n + count
-        if (end < target.length && /[\uD800-\uDBFF]/.test(target[end - 1])) end++
-        current.current = target.slice(0, end)
-        setValue(current.current)
-        setHot(Math.min(18, end))
-        last = now
-        clearTimeout(cool.current)
-        cool.current = setTimeout(() => setHot(0), 360)
-      }
-      if (current.current !== target) frame.current = requestAnimationFrame(tick)
-    }
-    frame.current = requestAnimationFrame(tick)
-  }, [target, animate, hold])
-  useEffect(
-    () => () => {
-      cancelAnimationFrame(frame.current)
-      frame.current = 0
-      clearTimeout(cool.current)
-    },
-    []
-  )
-  return { value, hot }
 }
 const InkText = memo(function InkText({
   value,
@@ -188,23 +134,23 @@ function AnswerInk({
   hold: boolean
   gest: Gesture
 }) {
-  const a = useFlow(turn.a, play, hold),
-    waved = useRef(false)
-  useEffect(() => {
-    if (play && !hold && turn.a && !waved.current) {
-      waved.current = true
-      gest('sweep', 'right', 0.67, 0.6)
-    }
-  }, [turn.a, play, hold, gest])
+  const host = useRef<HTMLDivElement>(null)
+  const options = useRef({ animate: play, paused: hold })
+  options.current.paused = hold
+  useLayoutEffect(() => {
+    if (play && host.current) return bookInk.register(host.current, 'right', options.current)
+  }, [])
   return (
+    <div ref={host} className="spatial-answer">
     <InkText
       user={false}
-      value={a.value}
-      hot={a.hot}
+      value={turn.a}
+      hot={0}
       files={files}
       live={turn.state === 'writing'}
-      tails={a.value === turn.a ? turn.output : undefined}
+      tails={turn.output}
     />
+    </div>
   )
 }
 function Entry({
@@ -231,7 +177,7 @@ function Entry({
     const t = setTimeout(() => setGhost(''), 330)
     return () => clearTimeout(t)
   }, [ghost])
-  const q = useFlow(turn.q, animated.current)
+  const q = { value: turn.q, hot: 0 }
   const allFiles = useMemo(() => [...turn.input, ...turn.output], [turn.input, turn.output])
   function interact(el: HTMLElement, user: boolean) {
     const target = el.closest<HTMLElement>('[data-ink]')
@@ -264,7 +210,7 @@ function Entry({
   })
   return (
     <section className="bound-turn" data-turn={turn.id}>
-      <div className="question-line" {...events(true)}>
+      <div className="question-line" role="heading" aria-level={2} {...events(true)}>
         <InkText
           user
           value={q.value}
@@ -325,6 +271,7 @@ function Composer({
   return (
     <div
       className="quill-zone"
+      data-writing={!!book.draft || !!book.pending.length || busy || undefined}
       onClick={(e) => {
         if (e.target === e.currentTarget) field.current?.focus()
       }}
@@ -351,7 +298,7 @@ function Composer({
           inputRef={field}
           value={book.draft}
           aria-label="写下你的问题"
-          placeholder="Write a question…"
+          placeholder={book.turns.length ? '续写一个问题……' : '在此写下第一个问题……'}
           autoComplete="off"
           onPointerDown={() => {
             drag.current = false
@@ -483,43 +430,114 @@ export default function Correspondence({
   onManage: () => void
 }) {
   const [float, setFloat] = useState<Float | null>(null),
+    [retiring, setRetiring] = useState(false),
     [feedback, setFeedback] = useState(''),
     list = useRef<HTMLDivElement>(null),
     body = useRef<HTMLDivElement>(null),
-    anchor = useRef<Element | null>(null)
+    anchor = useRef<Element | null>(null),
+    cue = useRef(0)
   const floatingRef = useRef<HTMLDivElement>(null)
+  const cancelFlight = useRef<() => void>(() => {})
   useLayoutEffect(() => {
     const el = floatingRef.current
     if (!el) return
-    const measure = () => el.style.setProperty('--float-height', el.offsetHeight + 'px')
+    const measure = () => {
+      el.style.setProperty('--float-height', el.offsetHeight + 'px')
+      const sheet = el.parentElement!
+      const x = (float?.x ?? .5) * sheet.clientWidth - el.offsetLeft,
+        y = (float?.y ?? .5) * sheet.clientHeight - el.offsetTop
+      // Work in the leaf's local coordinates, not the room's projected pixels.
+      el.style.setProperty('--lift-x', (x - el.offsetWidth / 2) * .32 + 'px')
+      el.style.setProperty('--lift-y', (y - el.offsetHeight / 2) * .32 + 'px')
+      el.style.setProperty('--spark-x', Math.max(0, Math.min(el.offsetWidth, x)) + 'px')
+      el.style.setProperty('--spark-y', Math.max(0, Math.min(el.offsetHeight, y)) + 'px')
+      el.style.transformOrigin = `${x}px ${y}px`
+    }
     measure()
     const obs = new ResizeObserver(measure)
     obs.observe(el)
     return () => obs.disconnect()
-  }, [float?.kind])
+  }, [float?.cue, float?.kind, float?.x, float?.y])
+  useLayoutEffect(() => {
+    const source = anchor.current, panel = floatingRef.current
+    if (!source || !panel || !float) return
+    if (!retiring) cancelFlight.current = bookInk.replay(source, float.side)
+    return () => cancelFlight.current()
+  }, [float?.cue, retiring])
   const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  function dismiss() {
+    if (retiring) return
+    const el = floatingRef.current
+    // Exit is decorative: an already-dismissed destructive menu must be inert.
+    if (el) {
+      el.inert = true
+      if (el.contains(document.activeElement) && anchor.current instanceof HTMLElement)
+        anchor.current.focus({ preventScroll: true })
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setFloat(null)
+    else {
+      if (el) {
+        // Interrupt a half-finished lift at its current frame, without a pop.
+        const style = getComputedStyle(el)
+        el.style.setProperty('--settle-opacity', style.opacity)
+        el.style.setProperty('--settle-transform', style.transform)
+        el.style.setProperty('--settle-filter', style.filter)
+      }
+      setRetiring(true)
+    }
+  }
   const show = (f: Float, el: Element) => {
+    let placement: Float['placement']
+    if (f.kind === 'module') {
+      // Leave both printed excerpts available when moving between Memory/Profile.
+      const excerpts = el.closest('.memory-print')?.querySelectorAll<HTMLElement>('.module-excerpt')
+      const first = excerpts?.[0], last = excerpts?.[excerpts.length - 1]
+      const sheet = el.closest<HTMLElement>('.paper')
+      if (first && last && sheet) {
+        const top = Math.max(.04, paperPoint(first, f.side).y - first.offsetHeight / sheet.offsetHeight / 2)
+        const bottom = Math.min(.93, paperPoint(last, f.side).y + last.offsetHeight / sheet.offsetHeight / 2)
+        const below = 1 - bottom >= top
+        const room = (below ? 1 - bottom : top) * sheet.offsetHeight
+        // Prefer an unused margin only if it fits the clearance and readable
+        // text. Dense marginalia uses the normal source-relative scroll panel.
+        if (room >= parseFloat(getComputedStyle(el).fontSize) * 8)
+          placement = { y: below ? bottom : top, below }
+      }
+    }
     anchor.current = el
+    setRetiring(false)
     setFeedback('')
-    setFloat(f)
-    gest('stroke', f.side, f.x, f.y)
+    setFloat({ ...f, placement, cue: ++cue.current })
   }
   useEffect(() => {
     setFloat(null)
+    setRetiring(false)
   }, [side, book.id])
+  useEffect(() => {
+    if (!retiring) return
+    // Also finish if a motion preference change cancels the CSS animation.
+    const timeout = setTimeout(() => { setFloat(null); setRetiring(false) }, INK_SPELL.settle + 60)
+    return () => clearTimeout(timeout)
+  }, [retiring])
+  useLayoutEffect(() => {
+    const origin = anchor.current
+    if (!float || retiring || !origin) return
+    origin.classList.add('ink-selected')
+    return () => origin.classList.remove('ink-selected')
+  }, [float?.cue, retiring])
   useEffect(() => {
     if (!float) return
     const close = (event: PointerEvent) => {
       const target = event.target as HTMLElement
       if (!target.closest('.raised-words') && !anchor.current?.contains(target)) {
-        setFloat(null)
+        dismiss()
       }
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation()
         e.preventDefault()
-        setFloat(null)
+        dismiss()
       }
     }
     document.addEventListener('pointerdown', close, true)
@@ -528,7 +546,7 @@ export default function Correspondence({
       document.removeEventListener('pointerdown', close, true)
       window.removeEventListener('keydown', key, true)
     }
-  }, [float])
+  }, [float, retiring])
   useLayoutEffect(() => {
     const pane = list.current,
       inner = body.current
@@ -537,11 +555,13 @@ export default function Correspondence({
   }, [book.id, scrollMark])
   function scrolled() {
     const pane = list.current!
+    cancelFlight.current()
+    if (retiring) return
     if (float?.side === 'right' && float.kind !== 'undo' && anchor.current) {
       const bounds = anchor.current.getBoundingClientRect(),
         rect = pane.getBoundingClientRect()
       if (!anchor.current.isConnected || bounds.bottom < rect.top || bounds.top > rect.bottom)
-        setFloat(null)
+        dismiss()
       else {
         const point = paperPoint(anchor.current, 'right')
         setFloat((f) => (f ? { ...f, ...point } : null))
@@ -553,6 +573,8 @@ export default function Correspondence({
   const isMenu = float?.kind === 'actions' || float?.kind === 'both',
     isProcess = float?.kind === 'process' || float?.kind === 'both'
   const selectedFile = float?.file
+  const floatAnchor = float?.placement?.y ?? Math.min(.93, Math.max(.05, float?.y ?? .5))
+  const floatBelow = float?.placement?.below ?? (float?.y ?? .5) < .5
   const action = (type: 'copy' | 'erase' | 'retry') => {
     if (!turn || !float) return
     if (type === 'copy') {
@@ -598,7 +620,7 @@ export default function Correspondence({
         aria-hidden={!visible('left')}
         aria-label="左页记忆与档案"
       >
-        <div className="memory-print" data-muted={float?.side === 'left' || undefined}>
+        <div className="memory-print" data-muted={(!retiring && float?.side === 'left') || undefined}>
           {(book.memory || book.profile) && <h1>Marginalia</h1>}
           {(['memory', 'profile'] as const).map((field, i) => book[field] && (
             <section key={field}>
@@ -643,7 +665,7 @@ export default function Correspondence({
         <div
           className="conversation-print"
           data-muted={
-            (float?.side === 'right' && float.kind !== 'actions' && float.kind !== 'undo') || undefined
+            (!retiring && float?.side === 'right' && float.kind !== 'actions' && float.kind !== 'undo') || undefined
           }
         >
           <header className="chapter-fixed">
@@ -668,6 +690,7 @@ export default function Correspondence({
             }}
             aria-label="对话正文"
           >
+            <InkDebugSample />
             <div ref={body} className="flowing-text">
               {book.turns.map((t) => (
                 <Entry key={t.id} turn={t} gest={gest} motion={motion} open={show} />
@@ -687,31 +710,46 @@ export default function Correspondence({
         )}
       </article>
       {float && visible(float.side) && (
-        <div className={'raised-sheet rise-' + float.side} aria-live="polite">
+        <div className={'raised-sheet rise-' + float.side} aria-live="polite" style={{
+          '--spell-contact': INK_SPELL.contact + 'ms',
+          '--spell-rise': INK_SPELL.rise + 'ms',
+          '--spell-settle': INK_SPELL.settle + 'ms',
+        } as CSSProperties}>
           <div
+            key={float.cue}
             ref={floatingRef}
             className={
               'raised-words ' +
               ((isMenu && !isProcess) || float.kind === 'undo' ? 'action-words' : 'detail-words')
             }
             role="dialog"
+            inert={retiring}
+            data-retiring={retiring || undefined}
+            onAnimationEnd={(e) => {
+              if (e.target === e.currentTarget && e.animationName === 'settle-ink') {
+                setFloat(null)
+                setRetiring(false)
+              }
+            }}
+            data-placement={floatBelow ? 'below' : 'above'}
             aria-label={isMenu ? '浮字操作' : isProcess ? '本轮过程' : '浮起的文字'}
             style={
               {
-                '--anchor': Math.min(0.93, Math.max(0.05, float.y)),
+                '--anchor': floatAnchor,
+                '--float-room': floatBelow ? 1 - floatAnchor : floatAnchor,
                 '--ink-x': Math.max(0.26, Math.min(0.68, float.x)),
               } as CSSProperties
             }
           >
             <div className="gold-motes" aria-hidden>
-              {Array.from({ length: 16 }, (_, i) => (
+              {Array.from({ length: 10 }, (_, i) => (
                 <i
                   key={i}
                   style={
                     {
                       '--i': i,
-                      '--dx': Math.sin(i * 7) * 30 + 'px',
-                      '--dy': -8 - (i % 5) * 5 + 'px',
+                      '--dx': Math.sin(i * 7) * 42 + 'px',
+                      '--dy': -14 - (i % 5) * 7 + 'px',
                     } as CSSProperties
                   }
                 />
@@ -721,7 +759,7 @@ export default function Correspondence({
               <div className="raised-copy">
                 {float.title && <h2>{float.title}</h2>}
                 {float.text?.split(/\n\s*\n/).map((p, i) => (
-                  <p key={i}>{p}</p>
+                  <p key={i} style={{ '--ink-line': Math.min(i + 1, 6) } as CSSProperties}>{p}</p>
                 ))}
               </div>
             )}
@@ -730,7 +768,7 @@ export default function Correspondence({
                 <h2>Process notes</h2>
                 {turn?.notes.length ? (
                   turn.notes.map((n, i) => (
-                    <p key={i}>
+                    <p key={i} style={{ '--ink-line': Math.min(i + 1, 6) } as CSSProperties}>
                       <b>{n.kind}</b> {n.text}
                     </p>
                   ))
