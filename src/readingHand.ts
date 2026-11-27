@@ -173,16 +173,8 @@ export function readingHand(avatar: THREE.Group) {
       }
     },
     draw(now: number, rig: DeskReading, camera: THREE.PerspectiveCamera, w: number, h: number) {
-      if (!signal) return
       if (reduced.matches) { hide(); return }
-      const brush = signal.action === 'stroke'
-      const t = (now - start) / (brush ? INK_SPELL.duration : signal.action === 'sweep' ? 1000 : 850)
-      if (t >= 1) {
-        hide()
-        return
-      }
-      // draw() already runs on requestAnimationFrame. A 24ms gate skipped
-      // every other 60Hz frame and made even a smooth pose look like a jump.
+      if (!meshes.length) return
       if (!renderer) {
         try {
           renderer = new THREE.WebGLRenderer({
@@ -201,8 +193,22 @@ export function readingHand(avatar: THREE.Group) {
         // Preserve the character branch's hidden/narrow/reduced-motion fix.
         renderer.domElement.style.removeProperty('display')
         renderer.domElement.setAttribute('aria-hidden', 'true')
+        renderer.domElement.hidden = true
         document.body.append(renderer.domElement)
+        renderer.setSize(w, h, false)
+        // Warm the shader/buffers when the reader opens, not on the click.
+        // Otherwise first-paint compilation can eat the entire lateral pass.
+        for (const mesh of meshes) (mesh.material as THREE.MeshStandardMaterial).opacity = 0
+        renderer.render(scene, camera)
       }
+      if (!signal) return
+      const brush = signal.action === 'stroke'
+      const t = (now - start) / (brush ? INK_SPELL.duration : signal.action === 'sweep' ? 1000 : 850)
+      if (t >= 1) {
+        hide()
+        return
+      }
+      // draw() already runs on requestAnimationFrame; do not skip 60Hz frames.
       renderer.domElement.hidden = false
       if (
         renderer.domElement.clientWidth !== w ||

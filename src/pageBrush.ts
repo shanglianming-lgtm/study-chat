@@ -12,11 +12,12 @@ export function createPageBrush(palm: THREE.Vector3) {
     u: number, v: number, width: number, ms: number) => {
     const pose = inkBrushPose(ms)
     const span = THREE.MathUtils.clamp(width, .22, .72)
+    const centre = THREE.MathUtils.clamp(u, .1 + span / 2, .9 - span / 2)
     rig.worldPoint(side, 0, 0, 0, origin)
     rig.worldPoint(side, 1, 0, 0, right).sub(origin).normalize()
     rig.worldPoint(side, 0, 1, 0, down).sub(origin).normalize()
     normal.crossVectors(down, right).normalize()
-    rig.worldPoint(side, u + span * pose.travel, v + .008 * Math.sin(Math.PI * pose.sweep), pose.height, target)
+    rig.worldPoint(side, centre + span * pose.travel, v + .008 * Math.sin(Math.PI * pose.sweep), pose.height, target)
     hand.quaternion.setFromRotationMatrix(basis.makeBasis(right, normal, down))
     // Fingers remain together and point obliquely along the leaf. Only after
     // the pass does the wrist roll away; there is no touchdown or pinch beat.

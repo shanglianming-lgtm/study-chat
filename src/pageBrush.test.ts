@@ -32,3 +32,22 @@ it.each([['left', 1], ['right', .76]] as const)('passes a relaxed %s palm latera
   hand.updateMatrix()
   expect(palm.clone().applyMatrix4(hand.matrix).applyMatrix4(inverse).z).toBeGreaterThan(.03)
 })
+
+it.each([
+  [.30355, .50802], [.43576, .72], [.46622, .69193], [.55985, .72], [.95, .22],
+])('keeps the palm over the selected leaf through ink resolution (u=%s)', (u, width) => {
+  const palm = new THREE.Vector3(.013, -.002, -.037), hand = new THREE.Group()
+  hand.scale.setScalar(.76)
+  const rig = { worldPoint: (_: PageSide, x: number, y: number, lift: number, out: THREE.Vector3) => out.set(x, -y, lift) }
+  const sample = createPageBrush(palm)
+  let previous = 0
+  for (let ms = 0; ms < INK_SPELL.duration; ms += 20) {
+    sample(hand, rig, 'right', u, .4, width, ms)
+    hand.updateMatrix()
+    const centre = palm.clone().applyMatrix4(hand.matrix)
+    expect(centre.x).toBeGreaterThanOrEqual(.0999)
+    expect(centre.x).toBeLessThan(.96)
+    expect(centre.x).toBeGreaterThanOrEqual(previous - 1e-10)
+    previous = centre.x
+  }
+})

@@ -17,11 +17,12 @@ export function inkBrushPose(ms: number) {
   const approach = ease(ms / INK_SPELL.contact)
   // Continue across the line instead of stopping over a fingertip and then
   // reversing toward the wrist. Ink delays also progress left-to-right.
-  const travel = (ms - INK_SPELL.contact) / INK_SPELL.brush
-  const sweep = Math.max(0, Math.min(1, travel))
+  const sweep = Math.max(0, Math.min(1, (ms - INK_SPELL.contact) / INK_SPELL.brush))
   const lift = ease((ms - INK_SPELL.contact - INK_SPELL.brush - 40) / 500)
   return {
-    travel: travel - .5,
+    // Drift only a little after the pass: an unbounded travel sent the palm
+    // off the right leaf while the ink was still rising under its fingertips.
+    travel: sweep - .5 + .08 * lift,
     sweep,
     lift,
     height: .009 + .012 * (1 - approach) + .028 * lift,
