@@ -546,7 +546,11 @@ export default function Correspondence({
         const top = Math.max(.04, paperPoint(first, f.side).y - first.offsetHeight / sheet.offsetHeight / 2)
         const bottom = Math.min(.93, paperPoint(last, f.side).y + last.offsetHeight / sheet.offsetHeight / 2)
         const below = 1 - bottom >= top
-        placement = { y: below ? bottom : top, below }
+        const room = (below ? 1 - bottom : top) * sheet.offsetHeight
+        // Prefer an unused margin only if it fits the clearance and readable
+        // text. Dense marginalia uses the normal source-relative scroll panel.
+        if (room >= parseFloat(getComputedStyle(el).fontSize) * 8)
+          placement = { y: below ? bottom : top, below }
       }
     }
     anchor.current = el
