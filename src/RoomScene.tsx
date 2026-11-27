@@ -16,6 +16,7 @@ import { folioScale } from './studyFurnishings'
 import { createDeskReading, type DeskReading } from './deskReading'
 
 import { readingHand, type HandSignal } from './readingHand'
+import { bookInk } from './spatialInk'
 import { createCursorGaze } from './cursorGaze'
 import { sampleRegisterFlight } from './registerFlight'
 import { deskJourneyMs, deskSeatPose } from './deskSeat'
@@ -121,6 +122,11 @@ export default function RoomScene(props: Props) {
     mount.append(canvas)
     const room = buildStudy(software),
       { scene, furnishings: f } = room
+    const inkLight = new THREE.PointLight(0xffaa33, 2, 3)
+    inkLight.name = 'Hand-bound golden ink light'
+    inkLight.intensity = 0 // Keep its shader variant warm without illuminating the idle room.
+    scene.add(inkLight)
+    let inkWasActive = false, lastInkPaint = 0
     const magic = createBookMagic()
     let finish: ReturnType<typeof finishFolio> | undefined
     let deskRig: DeskReading | null = null
@@ -861,16 +867,37 @@ export default function RoomScene(props: Props) {
         f.openBook(follower.boardLift)
       }
       if(reading&&deskRig&&!kind&&!latest.current.managing){
+        const ink = handModel && bookInk.frame(performance.now(), deskRig,
+          (side, u, v, alpha) => handModel!.write(side, u, v, alpha, deskRig!))
+        if (ink) {
+          const moved = inkLight.position.distanceToSquared(ink.palm) > 1e-10
+          inkLight.position.copy(ink.palm)
+          inkLight.intensity = 2
+          lastHand = latest.current.hand?.seq ?? lastHand
+          // The real point light illuminates the actual folio, not a CSS glow.
+          // Manual inspection redraws only on a changed hand position.
+          if (!inkWasActive || (ink.manual ? moved : now - lastInkPaint >= 1000 / 30)) {
+            dirty = true
+            lastInkPaint = now
+          }
+          inkWasActive = true
+        } else {
+          if (inkWasActive) { handModel?.endInk(); inkLight.intensity = 0; dirty = true; inkWasActive = false }
         const next=latest.current.hand
         if(next&&next.seq!==lastHand){lastHand=next.seq;if(!reduced.matches)handModel?.play(next,now)}
+        }
         handModel?.draw(now,deskRig,camera,mount!.clientWidth,mount!.clientHeight)
-      }else handModel?.hide()
+      }else {
+        handModel?.hide()
+        bookInk.stop()
+        if (inkWasActive) { inkLight.intensity = 0; inkWasActive = false; dirty = true }
+      }
       if (!dirty) return
       const elapsed = paused || document.hidden ? 0 : Math.min(0.1, (now - lastMagicPaint) / 1000)
       lastMagicPaint = now
       const ratio = Math.min(
         window.devicePixelRatio || 1,
-        software ? (busy() || turningHead || keys.size > 0 || (drag?.travel ?? 0) > 0 ? (carrying || kind ? 0.8 : 0.6) : 1) : 1.5
+        software ? (inkWasActive ? .6 : busy() || turningHead || keys.size > 0 || (drag?.travel ?? 0) > 0 ? (carrying || kind ? 0.8 : 0.6) : 1) : 1.5
       )
       if (pixelRatio !== ratio) {
         pixelRatio = ratio

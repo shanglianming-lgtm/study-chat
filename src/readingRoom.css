@@ -1,4 +1,37 @@
 /* The folio supplies all page surfaces. Only the ink and its interactions live here. */
+::highlight(book-ink-pending) { color: transparent; text-shadow: none; }
+::highlight(book-ink-dry) { color: #2A1B12; text-shadow: none; }
+.spatial-ink-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.spatial-ink-canvas[hidden] { display: none; }
+.ink-debug-panel {
+  position: fixed;
+  z-index: 90;
+  left: 12px;
+  bottom: 12px;
+  width: 220px;
+  padding: 12px;
+  color: #e9dec4;
+  background: #211b15ed;
+  border: 1px solid #9a8151;
+  border-radius: 6px;
+  font: 12px/1.5 system-ui, sans-serif;
+  pointer-events: auto;
+}
+.ink-debug-panel strong, .ink-debug-panel label, .ink-debug-panel small { display: block; }
+.ink-debug-panel input { width: 100%; }
+.ink-debug-panel output { float: right; }
+.ink-debug-panel button { font: inherit; color: inherit; background: #51422d; border: 1px solid #806c48; border-radius: 3px; padding: 3px 6px; margin: 3px 4px 3px 0; cursor: pointer; }
+.ink-debug-panel small { color: #b9ac92; margin-top: 5px; }
+.ink-debug-sample { padding-top: 4em; }
+.ink-debug-caption { font: 10px/1.5 system-ui, sans-serif; color: #89795c; margin-bottom: 3em; letter-spacing: .05em; }
+.ink-debug-line { font: 400 1.2em/1.8 var(--book-type); white-space: nowrap; }
+.book-scroll:has(.ink-debug-sample) :is(.flowing-text, .quill-zone) { display: none; }
 .dialogue-spread,
 .raised-sheet {
   user-select: none;

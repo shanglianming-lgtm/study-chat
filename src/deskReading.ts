@@ -216,6 +216,10 @@ export function createDeskReading(book: THREE.Group, desk: THREE.Vector3, seatEy
     worldPoint(side: PageSide,u:number,v:number,lift:number,out:THREE.Vector3) {
       return anchors[side].localToWorld(out.set((u-.5)*paperWidth,(.5-v)*paperHeight,lift))
     },
+    pagePoint(side: PageSide, world: THREE.Vector3, out: THREE.Vector3) {
+      anchors[side].worldToLocal(out.copy(world))
+      return out.set(out.x / paperWidth + .5, .5 - out.y / paperHeight, out.z)
+    },
     get moving() { return Math.abs(focusX - wantedX()) > 0.00005 || Math.abs(thickness - fraction) > 0.0005 },
     attach(element: HTMLElement | null) { root = element; if (element && eye) print(eye) },
     configure(nextFraction: number, nextFocus: Focus) {

@@ -163,6 +163,18 @@ export function readingHand(avatar: THREE.Group, software = false) {
   // fingertip should jut farther inward over the printed text.
   const hoverTip = new THREE.Vector3(knuckles[2].x, 0, relaxedBounds.min.z)
   const hover = createPageBrush(hoverTip)
+  // A bone on the rendered hand follows the same relaxed-finger deformation
+  // as the mesh. Spatial ink reads its WORLD position, not a CSS clock/ratio.
+  const inkTip = new THREE.Bone(), inkPalm = new THREE.Bone()
+  inkTip.name = 'Reading_Index3_end'
+  inkTip.position.copy(tip).sub(knuckles[1]).applyAxisAngle(new THREE.Vector3(1, 0, 0), -.13)
+    .applyAxisAngle(new THREE.Vector3(0, 0, 1), -1.5 * .055).add(knuckles[1])
+  inkPalm.position.copy(knuckles[1]).lerp(knuckles[4], .5).multiplyScalar(.58)
+  inkPalm.position.y -= .008 // Warm emitter just below the palm.
+  hand.add(inkTip, inkPalm)
+  const inkOrigin = new THREE.Vector3(), inkRight = new THREE.Vector3(), inkDown = new THREE.Vector3()
+  const inkNormal = new THREE.Vector3(), inkTarget = new THREE.Vector3(), inkOffset = new THREE.Vector3()
+  const inkBasis = new THREE.Matrix4(), inkTurn = new THREE.Quaternion().setFromEuler(new THREE.Euler(.06, .28, -.04, 'YXZ'))
   const scene = new THREE.Scene()
   const reduced = matchMedia('(prefers-reduced-motion: reduce)')
   scene.add(hand, new THREE.HemisphereLight(0xfff3d9, 0x87725f, 1.85))
@@ -173,16 +185,35 @@ export function readingHand(avatar: THREE.Group, software = false) {
     unavailable = false,
     lastPaint = 0,
     start = 0,
-    signal: HandSignal | undefined
+    signal: HandSignal | undefined,
+    inking = false,
+    inkOpacity = 1
   const location = new THREE.Vector3(),
     entry = new THREE.Vector3()
   function hide() {
     if (renderer) renderer.domElement.hidden = true
     signal = undefined
+    inking = false
   }
   return {
+    write(side: PageSide, u: number, v: number, alpha: number, rig: DeskReading) {
+      inking = true
+      inkOpacity = alpha
+      signal = { action: 'stroke', side, u, v, seq: 0 }
+      rig.worldPoint(side, 0, 0, 0, inkOrigin)
+      rig.worldPoint(side, 1, 0, 0, inkRight).sub(inkOrigin).normalize()
+      rig.worldPoint(side, 0, 1, 0, inkDown).sub(inkOrigin).normalize()
+      inkNormal.crossVectors(inkDown, inkRight).normalize()
+      hand.quaternion.setFromRotationMatrix(inkBasis.makeBasis(inkRight, inkNormal, inkDown)).multiply(inkTurn)
+      rig.worldPoint(side, u, v, .022, inkTarget)
+      hand.position.copy(inkTarget).sub(inkOffset.copy(inkTip.position).multiply(hand.scale).applyQuaternion(hand.quaternion))
+      hand.updateMatrixWorld(true)
+      return { tip: inkTip.getWorldPosition(new THREE.Vector3()), palm: inkPalm.getWorldPosition(new THREE.Vector3()) }
+    },
+    endInk() { if (inking) hide() },
     play(s: HandSignal, now: number) {
       if (meshes.length && !unavailable && !reduced.matches) {
+        inking = false
         signal = s
         start = now
         lastPaint = 0
@@ -222,7 +253,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
       }
       if (!signal) return
       const brush = signal.action === 'stroke'
-      const t = (now - start) / (brush ? INK_SPELL.gesture : signal.action === 'sweep' ? 1000 : 850)
+      const t = inking ? 0 : (now - start) / (brush ? INK_SPELL.gesture : signal.action === 'sweep' ? 1000 : 850)
       if (t >= 1) {
         hide()
         return
@@ -239,7 +270,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
         ease = THREE.MathUtils.smootherstep(t, 0, 0.46) * (1 - THREE.MathUtils.smootherstep(t, 0.57, 1))
       let opacity = 1
       if (brush) {
-        opacity = hover(hand, rig, signal.side, signal.v, now - start)
+        opacity = inking ? inkOpacity : hover(hand, rig, signal.side, signal.v, now - start)
       } else {
         const slide = action === 'sweep' ? 0.46 : action === 'rewind' ? -0.18 : 0.025
         rig.worldPoint(signal.side, signal.u + slide * (0.48 - t), signal.v, action === 'point' ? 0.009 : 0.016, location)

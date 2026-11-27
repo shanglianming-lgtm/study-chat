@@ -42,7 +42,8 @@ import { shouldSend } from './book'
 import { PaperField } from './BookFrontMatter'
 import type { PageSide } from './deskReading'
 import { INK_SPELL } from './inkSpell'
-import { inkFlight } from './inkFlight'
+import { bookInk } from './spatialInk'
+import { InkDebugSample } from './InkDebug'
 
 export type HandAction = 'point' | 'sweep' | 'stroke' | 'pinch' | 'rewind'
 export type Gesture = (action: HandAction, side: PageSide, u: number, v: number, width?: number) => void
@@ -85,65 +86,6 @@ function paperPoint(el: Element, side: PageSide) {
   }
   const r = sheet.getBoundingClientRect()
   return { x: (x - r.left) / r.width, y: (y - r.top) / r.height }
-}
-function useFlow(target: string, animate: boolean, hold = false) {
-  const [value, setValue] = useState(() => (animate ? '' : target)),
-    [hot, setHot] = useState(0)
-  const current = useRef(value),
-    latest = useRef({ target, hold }),
-    frame = useRef(0),
-    cool = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  latest.current = { target, hold }
-  useEffect(() => {
-    if (!animate) {
-      current.current = target
-      setValue(target)
-      setHot(0)
-      return
-    }
-    if (!target.startsWith(current.current)) {
-      current.current = ''
-      setValue('')
-    }
-    if (hold || frame.current || current.current === target) return
-    let last = performance.now()
-    function tick(now: number) {
-      frame.current = 0
-      const { target, hold } = latest.current
-      if (hold) return
-      let n = current.current.length
-      if (!target.startsWith(current.current)) n = 0
-      const count = Math.min(
-        target.length - n,
-        Math.max(
-          1,
-          Math.floor((now - last) * 0.11),
-          target.length - n > 300 ? Math.ceil((target.length - n) / 16) : 1
-        )
-      )
-      if (count > 0) {
-        let end = n + count
-        if (end < target.length && /[\uD800-\uDBFF]/.test(target[end - 1])) end++
-        current.current = target.slice(0, end)
-        setValue(current.current)
-        setHot(Math.min(18, end))
-        last = now
-        clearTimeout(cool.current)
-        cool.current = setTimeout(() => setHot(0), 360)
-      }
-      if (current.current !== target) frame.current = requestAnimationFrame(tick)
-    }
-    frame.current = requestAnimationFrame(tick)
-  }, [target, animate, hold])
-  useEffect(
-    () => () => {
-      cancelAnimationFrame(frame.current)
-      frame.current = 0
-      clearTimeout(cool.current)
-    },
-    []
-  )
-  return { value, hot }
 }
 const InkText = memo(function InkText({
   value,
@@ -192,23 +134,23 @@ function AnswerInk({
   hold: boolean
   gest: Gesture
 }) {
-  const a = useFlow(turn.a, play, hold),
-    waved = useRef(false)
-  useEffect(() => {
-    if (play && !hold && turn.a && !waved.current) {
-      waved.current = true
-      gest('sweep', 'right', 0.67, 0.6)
-    }
-  }, [turn.a, play, hold, gest])
+  const host = useRef<HTMLDivElement>(null)
+  const options = useRef({ animate: play, paused: hold })
+  options.current.paused = hold
+  useLayoutEffect(() => {
+    if (host.current) return bookInk.register(host.current, 'right', options.current)
+  }, [])
   return (
+    <div ref={host} className="spatial-answer">
     <InkText
       user={false}
-      value={a.value}
-      hot={a.hot}
+      value={turn.a}
+      hot={0}
       files={files}
       live={turn.state === 'writing'}
-      tails={a.value === turn.a ? turn.output : undefined}
+      tails={turn.output}
     />
+    </div>
   )
 }
 function Entry({
@@ -235,7 +177,7 @@ function Entry({
     const t = setTimeout(() => setGhost(''), 330)
     return () => clearTimeout(t)
   }, [ghost])
-  const q = useFlow(turn.q, animated.current)
+  const q = { value: turn.q, hot: 0 }
   const allFiles = useMemo(() => [...turn.input, ...turn.output], [turn.input, turn.output])
   function interact(el: HTMLElement, user: boolean) {
     const target = el.closest<HTMLElement>('[data-ink]')
@@ -519,7 +461,7 @@ export default function Correspondence({
   useLayoutEffect(() => {
     const source = anchor.current, panel = floatingRef.current
     if (!source || !panel || !float) return
-    cancelFlight.current = inkFlight(source, panel, float.side, retiring)
+    if (!retiring) cancelFlight.current = bookInk.replay(source, float.side)
     return () => cancelFlight.current()
   }, [float?.cue, retiring])
   const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -566,9 +508,6 @@ export default function Correspondence({
     setRetiring(false)
     setFeedback('')
     setFloat({ ...f, placement, cue: ++cue.current })
-    const paper = el.closest('.paper')?.getBoundingClientRect()
-    const width = paper?.width ? Math.min(.72, Math.max(.18, el.getBoundingClientRect().width / paper.width)) : .36
-    gest('stroke', f.side, f.x, f.y, width)
   }
   useEffect(() => {
     setFloat(null)
@@ -751,6 +690,7 @@ export default function Correspondence({
             }}
             aria-label="对话正文"
           >
+            <InkDebugSample />
             <div ref={body} className="flowing-text">
               {book.turns.map((t) => (
                 <Entry key={t.id} turn={t} gest={gest} motion={motion} open={show} />
