@@ -217,7 +217,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
         // Otherwise first-paint compilation can eat the entire lateral pass.
         for (const mesh of meshes) (mesh.material as THREE.MeshStandardMaterial).opacity = 0
         renderer.render(scene, camera)
-        if (software) cached = cachedPageBrush(renderer, scene, hand, meshes, bounds, sweepPalm)
+        if (software) cached = cachedPageBrush(renderer, scene, hand, meshes, bounds, palm, sweepPalm)
       }
       if (!signal) return
       const brush = signal.action === 'stroke'
