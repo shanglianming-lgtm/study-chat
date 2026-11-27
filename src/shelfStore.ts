@@ -20,7 +20,7 @@ import {
   type Note,
   type ModuleName,
 } from './library'
-import { checkMessages, complete, inputParts, type WireMessage, type ReturnedFile } from './provider'
+import { checkMessages, complete, inputParts, shareableText, type WireMessage, type ReturnedFile } from './provider'
 import { selectedEffort } from './modelSupport'
 
 let state = initialLibrary(),
@@ -365,8 +365,7 @@ export async function submit(id: string, retryId?: string) {
   const take = crypto.randomUUID(),
     modelRef = b.main,
     effort = selectedEffort(m.source, m.id, b.effort)
-  let ink = '',
-    started = false
+  let ink = ''
   jobs.set(id, signaler)
   let currentInput: WireMessage['content'] = q
   try {
@@ -393,33 +392,29 @@ export async function submit(id: string, retryId?: string) {
       notes: [],
       state: 'writing',
     }
-    editVolume(id, { turns: [...b.turns, turn], draft: '', pending: [] })
+    const current = volume(id)
+    editVolume(id, {
+      turns: [...current.turns, turn],
+      draft: current.draft === b.draft ? '' : current.draft,
+      pending: current.pending.filter((f) => !files.includes(f)),
+    })
   } else announce()
   const record = (kind: string, text: string) => {
     if (!text) return
     if (kind === '思路摘要' && notes.at(-1)?.kind === kind)
       notes[notes.length - 1] = { kind, text: notes.at(-1)!.text + text }
     else notes.push({ kind, text })
-    if (!old || started) patchTurn(id, turnId, { notes: notes.slice() })
+    if (!old) patchTurn(id, turnId, { notes: notes.slice() })
   }
   const write = (delta: string) => {
     if (!delta) return
-    started = true
     ink += delta
-    patchTurn(id, turnId, {
-      take,
-      a: ink,
-      state: 'writing',
-      notes: notes.slice(),
-      model: modelRef,
-      effort,
-      error: undefined,
-      ...(old ? { output: [] } : {}),
-    })
+    if (!old) patchTurn(id, turnId, { a: ink, notes: notes.slice() })
   }
   try {
     const keys = await planContext(b, q, files, signal),
-      context: string[] = []
+      context: string[] = [],
+      history = m.source.id === 'study' ? before : before.map((t) => shareableText(t.a) ? t : { ...t, a: '' })
     record('决策', modelFor(b, b.decision).id + ' · ' + (keys.length ? keys.join(', ') : '直接回答'))
     if (keys.includes('memory')) {
       context.push('Memory\n' + b.memory)
@@ -432,7 +427,7 @@ export async function submit(id: string, retryId?: string) {
     if (keys.includes('history')) {
       context.push(
         'Earlier exchanges\n' +
-          before
+          history
             .slice(-3)
             .map((t) => t.q + '\n' + t.a)
             .join('\n')
@@ -467,7 +462,7 @@ export async function submit(id: string, retryId?: string) {
             context.join('\n\n'),
         },
       ]
-      for (const t of before) {
+      for (const t of history) {
         wire.push({ role: 'user', content: await inputParts(t.q, t.input) })
         if (t.a) wire.push({ role: 'assistant', content: t.a })
       }
@@ -525,7 +520,7 @@ export async function submit(id: string, retryId?: string) {
       serial: numbered.serial,
       turns: current.turns.map((t) =>
         t.id === turnId
-          ? { ...t, a: ink, state: 'done', output, notes: notes.slice(), error: undefined }
+          ? { ...t, take, a: ink, state: 'done', output, notes: notes.slice(), model: modelRef, effort, error: undefined }
           : t
       ),
     })
@@ -542,7 +537,6 @@ export async function submit(id: string, retryId?: string) {
     }
   } catch (e) {
     if (old) {
-      patchTurn(id, turnId, { ...old })
       if (!signal.aborted) report(e)
     } else
       patchTurn(id, turnId, {

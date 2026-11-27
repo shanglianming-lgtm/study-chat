@@ -317,3 +317,20 @@ fn startup_recovers_incomplete_checkpoint_and_validates_destinations() {
     p.use_key = true;
     assert!(chat.save_provider(p, None).is_err());
 }
+
+#[tokio::test]
+async fn library_stops_an_oversized_event_stream() {
+    let dir = tempfile::tempdir().unwrap();
+    let chat = Chat::open(&dir.path().join("library.db"), Arc::new(TestSecrets::default())).unwrap();
+    let event = format!("data: {}\n\n", "a".repeat(256 * 1024)).into_bytes();
+    let (endpoint, request) = server("200 OK", vec![(event, 0); 20]).await;
+    let count = std::sync::atomic::AtomicUsize::new(0);
+    let result = chat
+        .library_http("large".into(), endpoint, false, Some(serde_json::json!({})), None, |_| {
+            count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        })
+        .await;
+    request.await.unwrap();
+    assert_eq!(result.unwrap_err(), "回应流过大，已停止接收。");
+    assert!((1..20).contains(&count.into_inner()));
+}
