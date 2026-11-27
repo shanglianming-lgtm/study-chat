@@ -42,7 +42,7 @@ export default function App() {
     }
   }
   const gest: Gesture = useCallback(
-    (action, side, u, v) => setHand({ action, side, u, v, seq: ++seq.current }),
+    (action, side, u, v, width) => setHand({ action, side, u, v, width, seq: ++seq.current }),
     []
   )
   const open = useCallback(() => {
