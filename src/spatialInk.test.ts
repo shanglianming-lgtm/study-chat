@@ -82,3 +82,18 @@ it('never masks printed replies or passages in the no-WebGL flat fallback', () =
   expect(CSS.highlights.get('book-ink-pending')?.size || 0).toBe(0)
   expect(host.textContent).toBe('Readable fallback reply')
 })
+it('does not allocate a canvas for an archived reply or repaint cooled ink at idle', () => {
+  const { host, rig } = fixture(), now = performance.now()
+  cleanups.splice(0).forEach(dispose => dispose())
+  cleanups.push(bookInk.register(host, 'right', { animate: false }))
+  expect(document.querySelector('canvas')).toBeNull()
+  cleanups.push(bookInk.register(host, 'right', { animate: true }))
+  const context = document.querySelector('canvas')!.getContext('2d')!
+  const clear = vi.spyOn(context, 'clearRect')
+  const pose = (_side: string, u: number, v: number) => ({ tip: new THREE.Vector3(u, v, .02), palm: new THREE.Vector3(u, v, .03) })
+  for (let t = 0; t <= 2000; t += 100) bookInk.frame(now + t, rig, pose)
+  expect(bookInk.inspect()[0].glyphs.every(g => g.phase === 3)).toBe(true)
+  const frames = clear.mock.calls.length
+  for (let t = 2100; t <= 2500; t += 100) bookInk.frame(now + t, rig, pose)
+  expect(clear).toHaveBeenCalledTimes(frames)
+})

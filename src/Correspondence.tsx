@@ -138,7 +138,7 @@ function AnswerInk({
   const options = useRef({ animate: play, paused: hold })
   options.current.paused = hold
   useLayoutEffect(() => {
-    if (host.current) return bookInk.register(host.current, 'right', options.current)
+    if (play && host.current) return bookInk.register(host.current, 'right', options.current)
   }, [])
   return (
     <div ref={host} className="spatial-answer">

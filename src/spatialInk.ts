@@ -8,6 +8,7 @@ type Target = {
   host: HTMLElement; paper: HTMLElement; side: PageSide; options: Options; glyphs: Glyph[]
   canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; refresh: () => void; dispose: () => void
   width: number; height: number; startedAt: number; debugRevision: number; debugTime: number
+  painted: boolean; dryCount: number
 }
 export type InkHandPose = (side: PageSide, u: number, v: number, alpha: number) => { tip: THREE.Vector3; palm: THREE.Vector3 }
 export type InkDebugState = { enabled: boolean; progress: number; mode: 'scrub' | 'stream'; text: string; revision: number }
@@ -40,12 +41,14 @@ function paperPoint(paper: HTMLElement, side: PageSide, x: number, y: number) {
   return { x: (x - box.left) * paper.offsetWidth / box.width, y: (y - box.top) * paper.offsetHeight / box.height }
 }
 const targets = new Set<Target>()
+let highlightsDirty = true
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 let cursor: { target: Target; point: InkPoint; last: number } | null = null
 const local = new THREE.Vector3()
 
 function highlight(now: number) {
-  if (typeof Highlight === 'undefined' || !CSS.highlights) return
+  if (typeof Highlight === 'undefined' || !CSS.highlights || !highlightsDirty) return
+  highlightsDirty = false
   const hidden: Range[] = [], dry: Range[] = []
   for (const target of targets) {
     const clock = target.options.debug && debugState.mode === 'scrub' ? target.debugTime : now
@@ -63,12 +66,18 @@ function highlight(now: number) {
 
 function paint(target: Target, now: number, reduced: boolean) {
   const { context: ctx, canvas, width, height } = target
+  const lives = target.glyphs.map(glyph => inkLife(glyph.activatedAt, now))
+  const phases = [0, 0, 0, 0]
+  lives.forEach(life => { phases[life.phase]++ })
+  if (target.dryCount !== phases[3]) { target.dryCount = phases[3]; highlightsDirty = true }
+  const states = phases.join(',')
+  if (canvas.dataset.inkStates !== states) canvas.dataset.inkStates = states
+  const hot = lives.some((life, i) => (life.phase === 1 || life.phase === 2) && visible(target, target.glyphs[i]))
+  if (!hot && !target.painted) return
   ctx.clearRect(0, 0, width, height)
   let painted = false
-  const phases = [0, 0, 0, 0]
   for (let i = 0; i < target.glyphs.length; i++) {
-    const glyph = target.glyphs[i], life = inkLife(glyph.activatedAt, now)
-    phases[life.phase]++
+    const glyph = target.glyphs[i], life = lives[i]
     if (life.phase === 0 || life.phase === 3 || glyph.y < 0 || glyph.y > height) continue
     painted = true
     ctx.save()
@@ -102,22 +111,23 @@ function paint(target: Target, now: number, reduced: boolean) {
     }
   }
   canvas.hidden = !painted
-  canvas.dataset.inkStates = phases.join(',') // unseen, gold, cooling, dry
+  target.painted = painted
 }
 
 function register(host: HTMLElement, side: PageSide, options: Options) {
   const paper = host.closest<HTMLElement>('.paper')
   // Keep the accessible printed text as a functional fallback on old engines.
-  if (!paper || !paper.closest('.desk-surface') || typeof Highlight === 'undefined' || !CSS.highlights) return () => {}
+  if (!options.animate || !paper || !paper.closest('.desk-surface') || typeof Highlight === 'undefined' || !CSS.highlights) return () => {}
   const canvas = document.createElement('canvas'), context = canvas.getContext('2d')
   if (!context) return () => {}
   canvas.className = 'spatial-ink-canvas'
+  canvas.hidden = true
   canvas.setAttribute('aria-hidden', 'true')
   canvas.inert = true
   paper.append(canvas)
   let disposed = false
   const target: Target = { host, paper, side, options, canvas, context, glyphs: [], width: 0, height: 0,
-    startedAt: performance.now(), debugRevision: -1, debugTime: performance.now(), refresh, dispose }
+    startedAt: performance.now(), debugRevision: -1, debugTime: performance.now(), painted: false, dryCount: -1, refresh, dispose }
   targets.add(target)
   function refresh() {
     if (disposed || !host.isConnected) return
@@ -154,6 +164,8 @@ function register(host: HTMLElement, side: PageSide, options: Options) {
     canvas.style.width = target.width + 'px'
     canvas.style.height = target.height + 'px'
     context!.setTransform(ratio, 0, 0, ratio, 0, 0)
+    target.painted = false
+    highlightsDirty = true
     target.debugRevision = -1
     highlight(performance.now())
   }
@@ -174,6 +186,7 @@ function register(host: HTMLElement, side: PageSide, options: Options) {
     window.removeEventListener('scroll', refresh, true)
     canvas.remove()
     targets.delete(target)
+    highlightsDirty = true
     if (cursor?.target === target) cursor = null
     highlight(performance.now())
   }
@@ -201,6 +214,7 @@ export const bookInk = {
     return register(host, side, { animate: true, ephemeral: true })
   },
   frame(now: number, rig: DeskReading, pose: InkHandPose) {
+    if (!targets.size) return null
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
     let hand: ReturnType<InkHandPose> | null = null
     let manual = false

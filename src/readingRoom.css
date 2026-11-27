@@ -9,6 +9,7 @@
   z-index: 5;
 }
 .spatial-ink-canvas[hidden] { display: none; }
+.spatial-answer { color: #2A1B12; }
 .ink-debug-panel {
   position: fixed;
   z-index: 90;
