@@ -279,9 +279,11 @@ export const bookInk = {
     if (!targets.size) return null
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
     let hand: ReturnType<InkHandPose> | null = null
+    let surface: Target | undefined
     let manual = false
     const debug = [...targets].find(t => t.options.debug && debugState.enabled)
     if (debug && debugState.mode === 'scrub' && debug.glyphs.length) {
+      surface = debug
       manual = true
       const glyphs = debug.glyphs, first = glyphs[0], last = glyphs.at(-1)!
       const start = first.x - 12, end = last.x + 12, duration = 4000, elapsed = duration * debugState.progress
@@ -311,6 +313,7 @@ export const bookInk = {
       const active = [...targets].reverse().find(t => !t.options.paused && (!debugState.enabled || t.options.debug) &&
         t.glyphs.some(g => g.activatedAt === null && visible(t, g)))
       if (active && !reduced) {
+        surface = active
         const next = active.glyphs.find(g => g.activatedAt === null && visible(active, g))!
         const entering = cursor?.target !== active
         if (entering) cursor = { target: active, point: { x: next.x - 18, y: next.y }, last: now }
@@ -336,7 +339,7 @@ export const bookInk = {
       if (target.options.ephemeral && target.glyphs.every(g => g.activatedAt !== null && now - g.activatedAt >= 1200)) target.dispose()
     }
     highlight(now)
-    return hand ? { ...hand, manual } : null
+    return hand && surface ? { ...hand, manual, paper: surface.paper, side: surface.side } : null
   },
   stop() { cursor = null },
 }
