@@ -35,6 +35,7 @@ it.each(['left', 'right'] as const)('keeps the %s cue in the outer margin, paral
     if (tips.length) {
       expect(onPaper.z).toBeGreaterThanOrEqual(tips.at(-1)!.z - 1e-10)
       expect(onPaper.y).toBeGreaterThan(tips.at(-1)!.y)
+      if (opacity > .1) expect(onPaper.y - tips.at(-1)!.y).toBeGreaterThan(.0007)
     }
     expect(opacity).toBeGreaterThanOrEqual(0)
     expect(opacity).toBeLessThanOrEqual(1)

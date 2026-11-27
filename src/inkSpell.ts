@@ -4,7 +4,7 @@ export const INK_SPELL = {
   contact: 200,
   brush: 460,
   rise: 760,
-  gesture: 880,
+  gesture: 720,
   duration: 1320,
   settle: 420,
 } as const
@@ -15,8 +15,10 @@ function ease(value: number) {
 }
 
 export function inkHoverPose(ms: number) {
-  const pass = ease(ms / INK_SPELL.gesture)
-  const leave = ease((ms - 500) / 380)
+  // Keep travelling while visible. Quintic position easing held the fingers
+  // almost still in the fading tail, which read as a pause before withdrawal.
+  const pass = Math.max(0, Math.min(1, ms / INK_SPELL.gesture))
+  const leave = ease((ms - 440) / 280)
   return {
     pass,
     leave,
@@ -25,6 +27,6 @@ export function inkHoverPose(ms: number) {
     edge: .99 - .035 * Math.sin(Math.PI * pass) + .10 * leave,
     along: .055 - .13 * pass,
     height: .022 + .016 * leave,
-    opacity: ease(ms / 100) * (1 - ease((ms - 560) / 320)),
+    opacity: ease(ms / 100) * (1 - ease((ms - 480) / 240)),
   }
 }

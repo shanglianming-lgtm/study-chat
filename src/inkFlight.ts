@@ -78,11 +78,31 @@ export function inkFlight(origin: Element, panel: HTMLElement, side: PageSide, r
     }
     layer.append(svg)
   }
-  const echoes = glyphs.map((g, i) => {
+  // Paint a few nearby graphemes into each moving layer. Seventy-two separate
+  // will-change text layers can stall the software compositor on their first
+  // frame; small runs preserve the exact glyph positions without that burst.
+  const runs: typeof glyphs[] = []
+  for (const glyph of glyphs) {
+    const run = runs.at(-1), previous = run?.at(-1)
+    if (!run || run.length === 4 || previous!.font !== glyph.font ||
+      Math.abs(previous!.y - glyph.y) > .5 || glyph.x < previous!.x || glyph.x - previous!.x > glyph.size * 3)
+      runs.push([glyph])
+    else run.push(glyph)
+  }
+  const echoes = runs.map((run, i) => {
+    const g = run[0]
     const span = document.createElement('span')
-    span.textContent = g.text
     span.style.font = g.font
     span.style.lineHeight = '1'
+    for (const glyph of run) {
+      const letter = document.createElement('span')
+      letter.textContent = glyph.text
+      Object.assign(letter.style, { position: 'absolute', left: `${glyph.x - g.x}px`,
+        top: `${glyph.y - g.y}px`, font: glyph.font, lineHeight: '1' })
+      span.append(letter)
+    }
+    span.style.width = `${run.at(-1)!.x - g.x + run.at(-1)!.size}px`
+    span.style.height = `${Math.max(...run.map(glyph => glyph.size))}px`
     const progress = (g.x - left) / Math.max(1, right - left)
     const drift = Math.sin(i * 2.4) * g.size * .6
     const endX = landing.x + (progress - .5) * Math.min(panel.offsetWidth * .7, right - left)

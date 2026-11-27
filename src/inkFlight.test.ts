@@ -38,17 +38,19 @@ it('uses bounded inert echoes, leaving original text, graphemes and citation tar
   const { source, panel, sheet, animate, cancel } = fixture('é 👩‍🚀 <span class="ink-citation" data-ref="3">[3]</span>' + ' ink'.repeat(80))
   const original = source.innerHTML, citation = source.querySelector('.ink-citation')
   const stop = inkFlight(source, panel, 'right')
-  const echoes = [...sheet.querySelectorAll('.ink-flight > span')]
+  const echoes = [...sheet.querySelectorAll('.ink-flight > span > span')]
   expect(echoes).toHaveLength(72)
   expect(echoes.slice(0, 2).map(e => e.textContent)).toEqual(['é', '👩‍🚀'])
   expect(sheet.querySelector<HTMLElement>('.ink-flight')!.inert).toBe(true)
   expect(sheet.querySelector('.ink-flight')!.getAttribute('aria-hidden')).toBe('true')
   expect(source.innerHTML).toBe(original)
   expect(source.querySelector('.ink-citation')).toBe(citation)
-  expect(animate).toHaveBeenCalledTimes(72)
+  const movingLayers = animate.mock.calls.length
+  expect(movingLayers).toBeGreaterThan(0)
+  expect(movingLayers).toBeLessThanOrEqual(24)
   stop()
   expect(sheet.querySelector('.ink-flight')).toBeNull()
-  expect(cancel).toHaveBeenCalledTimes(72)
+  expect(cancel).toHaveBeenCalledTimes(movingLayers)
   expect(vi.getTimerCount()).toBe(0)
 })
 
@@ -59,7 +61,7 @@ it('cleans up on a live reduced-motion change and skips subsequent decorative re
   preference.matches = true
   change()
   expect(sheet.querySelector('.ink-flight')).toBeNull()
-  expect(cancel).toHaveBeenCalledTimes(8)
+  expect(cancel).toHaveBeenCalledTimes(2)
   animate.mockClear()
   inkFlight(source, panel, 'left', true)
   expect(animate).not.toHaveBeenCalled()
@@ -70,7 +72,7 @@ it('brushes native excerpt buttons without replacing or disabling their focus ta
   const { source, panel, sheet } = fixture('Memory and profile', 'button')
   source.focus()
   const stop = inkFlight(source, panel, 'left')
-  expect(sheet.querySelectorAll('.ink-flight > span')).toHaveLength(16)
+  expect(sheet.querySelectorAll('.ink-flight > span > span')).toHaveLength(16)
   expect(sheet.querySelector('.ink-wake')).not.toBeNull()
   expect(document.activeElement).toBe(source)
   expect(source.inert).not.toBe(true)

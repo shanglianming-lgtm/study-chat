@@ -23,7 +23,8 @@ export function readingHand(avatar: THREE.Group, software = false) {
     poses = ['point', 'stroke', 'pinch', 'rewind', 'sweep'] as const
   hand.scale.setScalar(.76) // Keep the character branch's page-hand framing.
   const meshes: THREE.Mesh[] = []
-  const bounds = new THREE.Box3(), relaxedBounds = new THREE.Box3(), cropCamera = new THREE.PerspectiveCamera()
+  const bounds = new THREE.Box3(), relaxedBounds = new THREE.Box3(), fingerBounds = new THREE.Box3()
+  const cropCamera = new THREE.PerspectiveCamera()
   avatar.traverse((obj) => {
     if (
       !(obj instanceof THREE.SkinnedMesh) ||
@@ -149,6 +150,10 @@ export function readingHand(avatar: THREE.Group, software = false) {
     bounds.union(geo.boundingBox!)
     relaxedBounds.union(new THREE.Box3().setFromBufferAttribute(
       geo.morphAttributes.position[poses.indexOf('stroke')] as THREE.BufferAttribute))
+    const relaxed = geo.morphAttributes.position[poses.indexOf('stroke')] as THREE.BufferAttribute
+    for (let i = 0; i < ids.length; i++)
+      if (kept.get(ids[i])!.digit >= 0)
+        fingerBounds.expandByPoint(new THREE.Vector3().fromBufferAttribute(relaxed, i))
     const mesh = new THREE.Mesh(geo, mat)
     mesh.frustumCulled = false
     hand.add(mesh)
@@ -254,7 +259,9 @@ export function readingHand(avatar: THREE.Group, software = false) {
         })
       }
       hand.updateMatrixWorld(true)
-      const rect = handViewport(bounds, hand.matrixWorld, camera, w, h)
+      // A hovering cue shows only fingers at the outside edge. Bounds for the
+      // full forearm and unrelated poses inflated this canvas to 512px high.
+      const rect = handViewport(brush ? fingerBounds : bounds, hand.matrixWorld, camera, w, h)
       renderer.domElement.hidden = !rect
       if (!rect) return
       renderer.domElement.style.transform = `translate(${rect.x}px,${rect.y}px)`
