@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import type { HandAction } from './Correspondence'
 import type { DeskReading, PageSide } from './deskReading'
+import { INK_SPELL, inkBrushPose } from './inkSpell'
 
-export type HandSignal = { action: HandAction; side: PageSide; u: number; v: number; seq: number }
+export type HandSignal = { action: HandAction; side: PageSide; u: number; v: number; width?: number; seq: number }
 export function readingHand(avatar: THREE.Group) {
   avatar.updateMatrixWorld(true)
   const joint = (name: string) =>
@@ -123,6 +124,8 @@ export function readingHand(avatar: THREE.Group) {
                           : 0.13
               point.sub(pivot).applyAxisAngle(new THREE.Vector3(1, 0, 0), -angle)
               if (digit === 0 && p === 'pinch') point.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.35)
+              if (digit > 0 && p === 'stroke')
+                point.applyAxisAngle(new THREE.Vector3(0, 0, 1), (digit - 2.5) * .055)
               point.add(pivot)
             }
             return point.toArray()
@@ -142,13 +145,13 @@ export function readingHand(avatar: THREE.Group) {
     meshes.push(mesh)
   })
   const scene = new THREE.Scene()
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)')
   scene.add(hand, new THREE.HemisphereLight(0xfff3d9, 0x87725f, 1.85))
   const sun = new THREE.DirectionalLight(0xffecd1, 1.55)
   sun.position.set(-2, 3, -1)
   scene.add(sun)
   let renderer: THREE.WebGLRenderer | undefined,
     start = 0,
-    last = 0,
     signal: HandSignal | undefined
   const location = new THREE.Vector3(),
     entry = new THREE.Vector3()
@@ -158,21 +161,22 @@ export function readingHand(avatar: THREE.Group) {
   }
   return {
     play(s: HandSignal, now: number) {
-      if (meshes.length) {
+      if (meshes.length && !reduced.matches) {
         signal = s
         start = now
-        last = 0
       }
     },
     draw(now: number, rig: DeskReading, camera: THREE.PerspectiveCamera, w: number, h: number) {
       if (!signal) return
-      const t = (now - start) / (signal.action === 'sweep' ? 1000 : 850)
+      if (reduced.matches) { hide(); return }
+      const brush = signal.action === 'stroke'
+      const t = (now - start) / (brush ? INK_SPELL.duration : signal.action === 'sweep' ? 1000 : 850)
       if (t >= 1) {
         hide()
         return
       }
-      if (now - last < 24) return
-      last = now
+      // draw() already runs on requestAnimationFrame. A 24ms gate skipped
+      // every other 60Hz frame and made even a smooth pose look like a jump.
       if (!renderer) {
         try {
           renderer = new THREE.WebGLRenderer({
@@ -201,26 +205,30 @@ export function readingHand(avatar: THREE.Group) {
       const action = signal.action,
         arc = Math.sin(Math.PI * t),
         ease = THREE.MathUtils.smootherstep(t, 0, 0.46) * (1 - THREE.MathUtils.smootherstep(t, 0.57, 1))
+      const pose = inkBrushPose(now - start)
       const slide =
         action === 'sweep' ? 0.46 : action === 'stroke' ? 0.21 : action === 'rewind' ? -0.18 : 0.025
       rig.worldPoint(
         signal.side,
-        signal.u + slide * (0.48 - t),
-        signal.v,
-        action === 'point' ? 0.009 : 0.016,
+        brush ? THREE.MathUtils.clamp(signal.u, .12, .88) + (pose.sweep - .5) * (signal.width ?? .36) : signal.u + slide * (0.48 - t),
+        signal.v + (brush ? .018 * Math.sin(pose.sweep * Math.PI) - .035 * pose.lift : 0),
+        brush ? .005 + .026 * pose.lift : action === 'point' ? 0.009 : 0.016,
         location
       )
       rig.worldPoint('right', 1.45, 1.45, 0.046, entry)
       hand.rotation.set(
-        -0.42 + 0.07 * arc,
-        (signal.side === 'left' ? 0.83 : 0.46) + 0.16 * t,
-        action === 'rewind' ? 0.44 * Math.sin(2 * Math.PI * t) : 0.08 * arc,
+        brush ? -.37 + .21 * pose.lift : -0.42 + 0.07 * arc,
+        (signal.side === 'left' ? 0.83 : 0.46) + (brush ? .28 * pose.sweep : 0.16 * t),
+        brush ? -.12 + .27 * pose.sweep + .1 * pose.lift : action === 'rewind' ? 0.44 * Math.sin(2 * Math.PI * t) : 0.08 * arc,
         'YXZ'
       )
-      hand.position.lerpVectors(entry, location, ease).sub(tip.clone().applyQuaternion(hand.quaternion))
+      hand.position.lerpVectors(entry, location, brush ? pose.reach : ease).sub(tip.clone().applyQuaternion(hand.quaternion))
       for (const mesh of meshes)
         mesh.morphTargetInfluences?.forEach((_, i, morphs) => {
-          morphs[i] = poses[i] === action ? arc : 0
+          morphs[i] = brush
+            ? poses[i] === 'stroke' ? pose.reach * (1 - .5 * pose.lift)
+              : poses[i] === 'pinch' ? pose.lift * pose.reach * .5 : 0
+            : poses[i] === action ? arc : 0
         })
       renderer.clear()
       renderer.render(scene, camera)
