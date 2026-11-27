@@ -5,7 +5,7 @@ import { INK_SPELL } from './inkSpell'
 import { createPageBrush } from './pageBrush'
 
 export type HandSignal = { action: HandAction; side: PageSide; u: number; v: number; width?: number; seq: number }
-export function readingHand(avatar: THREE.Group) {
+export function readingHand(avatar: THREE.Group, software = false) {
   avatar.updateMatrixWorld(true)
   const joint = (name: string) =>
     avatar.getObjectByName('J_Bip_R_' + name)!.getWorldPosition(new THREE.Vector3())
@@ -144,6 +144,7 @@ export function readingHand(avatar: THREE.Group) {
       roughness: 0.83,
       side: THREE.DoubleSide,
       transparent: true,
+      forceSinglePass: true,
     })
     const mesh = new THREE.Mesh(geo, mat)
     mesh.frustumCulled = false
@@ -180,7 +181,7 @@ export function readingHand(avatar: THREE.Group) {
         try {
           renderer = new THREE.WebGLRenderer({
             alpha: true,
-            antialias: true,
+            antialias: !software,
             powerPreference: 'low-power',
             premultipliedAlpha: true,
           })
@@ -190,7 +191,9 @@ export function readingHand(avatar: THREE.Group) {
           return
         }
         renderer.toneMapping = THREE.ACESFilmicToneMapping
-        renderer.setPixelRatio(Math.min(1.25, window.devicePixelRatio || 1))
+        // Skin is a soft decorative overlay. On the software renderer avoid
+        // multisampling millions of translucent PBR pixels on every frame.
+        renderer.setPixelRatio(Math.min(software ? .5 : 1.25, window.devicePixelRatio || 1))
         renderer.domElement.className = 'reading-hand'
         // Preserve the character branch's hidden/narrow/reduced-motion fix.
         renderer.domElement.style.removeProperty('display')

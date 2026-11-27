@@ -427,7 +427,7 @@ export default function RoomScene(props: Props) {
           if (!folioMeshes.has(node)) meshes.push(node)
         })
         player = createPlayerAvatar(f.playerModel, insideEye.y)
-        handModel=readingHand(f.playerModel)
+        handModel=readingHand(f.playerModel, software)
         finish = finishFolio(renderer, scene, f.book, f.playerModel, room.linen)
         scene.add(f.playerModel, magic.dust)
         readBookPose(f.book, dock)
