@@ -114,12 +114,13 @@
   border-top: 1px solid #776e6126;
 }
 .app .question-line {
-  margin: .25em 0 1.1em;
-  font: 400 1em/1.65 var(--book-type);
+  margin: .25em 0 .85em;
+  font: 600 1.08em/1.45 var(--book-type);
   overflow-wrap: anywhere;
 }
-.question-line .set-ink p {
+.app .question-line .set-ink p {
   white-space: pre-wrap;
+  text-align: start;
 }
 .answer-lines {
   position: relative;
@@ -130,8 +131,6 @@
 .set-ink:lang(zh) {
   line-height: 1.72;
 }
-.app .speaker-heading { font: 400 .72em/1.5 var(--book-type); font-variant-caps: small-caps; letter-spacing: .1em; text-align: start; margin: 0 0 .55em; color: #706250; }
-.speaker-heading span { letter-spacing: .02em; }
 .app .set-ink p {
   margin: 0;
   text-align: justify;

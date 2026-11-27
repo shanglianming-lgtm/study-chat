@@ -56,6 +56,7 @@ type Float = {
   user?: boolean
   file?: LeafFile
   cue?: number
+  placement?: { y: number; below: boolean }
 }
 function paperPoint(el: Element, side: PageSide) {
   const sheet = el.closest('.paper') as HTMLElement
@@ -210,13 +211,11 @@ function AnswerInk({
 }
 function Entry({
   turn,
-  number,
   gest,
   motion,
   open,
 }: {
   turn: Turn
-  number: number
   gest: Gesture
   motion: boolean
   open: (f: Float, el: Element) => void
@@ -267,8 +266,7 @@ function Entry({
   })
   return (
     <section className="bound-turn" data-turn={turn.id}>
-      <div className="question-line" {...events(true)}>
-        <h2 className="speaker-heading">Question {String(number).padStart(2, '0')} <span>· 问</span></h2>
+      <div className="question-line" role="heading" aria-level={2} {...events(true)}>
         <InkText
           user
           value={q.value}
@@ -279,7 +277,6 @@ function Entry({
         />
       </div>
       <div className="answer-lines" {...events(false)}>
-        <h2 className="speaker-heading">Reply <span>· 答</span></h2>
         {ghost && (
           <div className="receding-ink" aria-hidden inert>
             {ghost}
@@ -539,10 +536,23 @@ export default function Correspondence({
     }
   }
   const show = (f: Float, el: Element) => {
+    let placement: Float['placement']
+    if (f.kind === 'module') {
+      // Leave both printed excerpts available when moving between Memory/Profile.
+      const excerpts = el.closest('.memory-print')?.querySelectorAll<HTMLElement>('.module-excerpt')
+      const first = excerpts?.[0], last = excerpts?.[excerpts.length - 1]
+      const sheet = el.closest<HTMLElement>('.paper')
+      if (first && last && sheet) {
+        const top = Math.max(.04, paperPoint(first, f.side).y - first.offsetHeight / sheet.offsetHeight / 2)
+        const bottom = Math.min(.93, paperPoint(last, f.side).y + last.offsetHeight / sheet.offsetHeight / 2)
+        const below = 1 - bottom >= top
+        placement = { y: below ? bottom : top, below }
+      }
+    }
     anchor.current = el
     setRetiring(false)
     setFeedback('')
-    setFloat({ ...f, cue: ++cue.current })
+    setFloat({ ...f, placement, cue: ++cue.current })
     gest('stroke', f.side, f.x, f.y)
   }
   useEffect(() => {
@@ -608,6 +618,8 @@ export default function Correspondence({
   const isMenu = float?.kind === 'actions' || float?.kind === 'both',
     isProcess = float?.kind === 'process' || float?.kind === 'both'
   const selectedFile = float?.file
+  const floatAnchor = float?.placement?.y ?? Math.min(.93, Math.max(.05, float?.y ?? .5))
+  const floatBelow = float?.placement?.below ?? (float?.y ?? .5) < .5
   const action = (type: 'copy' | 'erase' | 'retry') => {
     if (!turn || !float) return
     if (type === 'copy') {
@@ -724,8 +736,8 @@ export default function Correspondence({
             aria-label="对话正文"
           >
             <div ref={body} className="flowing-text">
-              {book.turns.map((t, i) => (
-                <Entry key={t.id} turn={t} number={i + 1} gest={gest} motion={motion} open={show} />
+              {book.turns.map((t) => (
+                <Entry key={t.id} turn={t} gest={gest} motion={motion} open={show} />
               ))}
             </div>
           </div>
@@ -759,12 +771,12 @@ export default function Correspondence({
                 setRetiring(false)
               }
             }}
-            data-placement={float.y < .5 ? 'below' : 'above'}
+            data-placement={floatBelow ? 'below' : 'above'}
             aria-label={isMenu ? '浮字操作' : isProcess ? '本轮过程' : '浮起的文字'}
             style={
               {
-                '--anchor': Math.min(0.93, Math.max(0.05, float.y)),
-                '--float-room': float.y < .5 ? 1 - Math.max(.05, float.y) : Math.min(.93, float.y),
+                '--anchor': floatAnchor,
+                '--float-room': floatBelow ? 1 - floatAnchor : floatAnchor,
                 '--ink-x': Math.max(0.26, Math.min(0.68, float.x)),
               } as CSSProperties
             }
