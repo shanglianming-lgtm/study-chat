@@ -9,6 +9,7 @@ type Target = {
   canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; refresh: () => void; dispose: () => void
   width: number; height: number; startedAt: number; debugRevision: number; debugTime: number
   painted: boolean; dryCount: number
+  clip: { left: number; top: number; right: number; bottom: number }
 }
 export type InkHandPose = (side: PageSide, u: number, v: number, alpha: number) => { tip: THREE.Vector3; palm: THREE.Vector3 }
 export type InkDebugState = { enabled: boolean; progress: number; mode: 'scrub' | 'stream'; text: string; revision: number }
@@ -39,6 +40,23 @@ function paperPoint(paper: HTMLElement, side: PageSide, x: number, y: number) {
   }
   const box = paper.getBoundingClientRect()
   return { x: (x - box.left) * paper.offsetWidth / box.width, y: (y - box.top) * paper.offsetHeight / box.height }
+}
+function readingClip(host: HTMLElement, paper: HTMLElement) {
+  const pane = host.closest<HTMLElement>('.book-scroll')
+  if (!pane) return { left: 0, top: 0, right: paper.offsetWidth, bottom: paper.offsetHeight }
+  let left = pane.clientLeft, top = pane.clientTop, element: HTMLElement | null = pane
+  // Untransformed offset coordinates share the canvas's paper-local basis.
+  // Do not mistake the scroll viewport's screen-space AABB for its bounds on
+  // a perspective-projected leaf, and do not subtract its own scroll offset.
+  while (element && element !== paper) {
+    left += element.offsetLeft
+    top += element.offsetTop
+    const parent = element.offsetParent as HTMLElement | null
+    if (parent && parent !== paper) { left -= parent.scrollLeft; top -= parent.scrollTop }
+    element = parent
+  }
+  return { left: Math.max(0, left), top: Math.max(0, top),
+    right: Math.min(paper.offsetWidth, left + pane.clientWidth), bottom: Math.min(paper.offsetHeight, top + pane.clientHeight) }
 }
 const targets = new Set<Target>()
 let highlightsDirty = true
@@ -75,10 +93,14 @@ function paint(target: Target, now: number, reduced: boolean) {
   const hot = lives.some((life, i) => (life.phase === 1 || life.phase === 2) && visible(target, target.glyphs[i]))
   if (!hot && !target.painted) return
   ctx.clearRect(0, 0, width, height)
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(target.clip.left, target.clip.top, target.clip.right - target.clip.left, target.clip.bottom - target.clip.top)
+  ctx.clip()
   let painted = false
   for (let i = 0; i < target.glyphs.length; i++) {
     const glyph = target.glyphs[i], life = lives[i]
-    if (life.phase === 0 || life.phase === 3 || glyph.y < 0 || glyph.y > height) continue
+    if (life.phase === 0 || life.phase === 3 || !visible(target, glyph)) continue
     painted = true
     ctx.save()
     ctx.font = glyph.font
@@ -110,6 +132,7 @@ function paint(target: Target, now: number, reduced: boolean) {
       }
     }
   }
+  ctx.restore()
   canvas.hidden = !painted
   target.painted = painted
 }
@@ -127,7 +150,8 @@ function register(host: HTMLElement, side: PageSide, options: Options) {
   paper.append(canvas)
   let disposed = false
   const target: Target = { host, paper, side, options, canvas, context, glyphs: [], width: 0, height: 0,
-    startedAt: performance.now(), debugRevision: -1, debugTime: performance.now(), painted: false, dryCount: -1, refresh, dispose }
+    startedAt: performance.now(), debugRevision: -1, debugTime: performance.now(), painted: false, dryCount: -1,
+    clip: readingClip(host, paper), refresh, dispose }
   targets.add(target)
   function refresh() {
     if (disposed || !host.isConnected) return
@@ -158,6 +182,7 @@ function register(host: HTMLElement, side: PageSide, options: Options) {
     target.glyphs = carryInk(previous, next)
     target.width = paper!.offsetWidth
     target.height = paper!.offsetHeight
+    target.clip = readingClip(host, paper!)
     const ratio = Math.min(window.devicePixelRatio || 1, 1.5)
     canvas.width = Math.ceil(target.width * ratio)
     canvas.height = Math.ceil(target.height * ratio)
@@ -194,7 +219,7 @@ function register(host: HTMLElement, side: PageSide, options: Options) {
 }
 
 function visible(target: Target, glyph: Glyph) {
-  return glyph.x > 0 && glyph.x < target.width && glyph.y > 0 && glyph.y < target.height
+  return glyph.x > target.clip.left && glyph.x < target.clip.right && glyph.y > target.clip.top && glyph.y < target.clip.bottom
 }
 function onPaper(rig: DeskReading, side: PageSide, world: THREE.Vector3, target: Target) {
   rig.pagePoint(side, world, local)

@@ -12,7 +12,7 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({ matches: false }))
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
     setTransform() {}, clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, fillText() {},
-    measureText: () => ({ fontBoundingBoxAscent: 14 }), beginPath() {}, arc() {}, fill() {},
+    measureText: () => ({ fontBoundingBoxAscent: 14 }), beginPath() {}, arc() {}, fill() {}, rect() {}, clip() {},
   } as never)
   Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true,
     value(this: Range) { return new DOMRect(40 + this.startOffset * 10, 40, 10, 20) } })
@@ -70,7 +70,7 @@ it('settles immediately without a hand or embers for reduced motion', () => {
   const pose = vi.fn()
   expect(bookInk.frame(performance.now(), rig, pose)).toBeNull()
   expect(pose).not.toHaveBeenCalled()
-  expect(bookInk.inspect()[0].glyphs.every(g => g.phase === 3)).toBe(true)
+  expect(document.querySelector<HTMLCanvasElement>('canvas')!.dataset.inkStates).toBe('0,0,0,2')
 })
 it('never masks printed replies or passages in the no-WebGL flat fallback', () => {
   document.body.innerHTML = '<article class="paper"><div id="source">Readable fallback reply</div></article>'
@@ -92,8 +92,30 @@ it('does not allocate a canvas for an archived reply or repaint cooled ink at id
   const clear = vi.spyOn(context, 'clearRect')
   const pose = (_side: string, u: number, v: number) => ({ tip: new THREE.Vector3(u, v, .02), palm: new THREE.Vector3(u, v, .03) })
   for (let t = 0; t <= 2000; t += 100) bookInk.frame(now + t, rig, pose)
-  expect(bookInk.inspect()[0].glyphs.every(g => g.phase === 3)).toBe(true)
+  expect(document.querySelector<HTMLCanvasElement>('canvas')!.dataset.inkStates).toBe('0,0,0,2')
   const frames = clear.mock.calls.length
   for (let t = 2100; t <= 2500; t += 100) bookInk.frame(now + t, rig, pose)
   expect(clear).toHaveBeenCalledTimes(frames)
+})
+it('does not chase a line clipped above the scroll pane, and clips active drawing to the pane', () => {
+  const { host, rig } = fixture(), now = performance.now(), paper = host.closest<HTMLElement>('.paper')!
+  cleanups.splice(0).forEach(dispose => dispose())
+  const pane = document.createElement('div')
+  pane.className = 'book-scroll'
+  host.replaceWith(pane)
+  pane.append(host)
+  Object.defineProperties(pane, { offsetParent: { value: paper }, offsetTop: { value: 100, configurable: true },
+    offsetLeft: { value: 20 }, clientWidth: { value: 300 }, clientHeight: { value: 350 } })
+  cleanups.push(bookInk.register(host, 'right', { animate: true }))
+  const pose = vi.fn((_side: string, u: number, v: number) => ({ tip: new THREE.Vector3(u, v, .02), palm: new THREE.Vector3(u, v, .03) }))
+  bookInk.frame(now, rig, pose)
+  expect(pose).not.toHaveBeenCalled()
+  cleanups.splice(0).forEach(dispose => dispose())
+  Object.defineProperty(pane, 'offsetTop', { value: 30 })
+  cleanups.push(bookInk.register(host, 'right', { animate: true }))
+  const ctx = document.querySelector('canvas')!.getContext('2d')!, rect = vi.spyOn(ctx, 'rect'), clip = vi.spyOn(ctx, 'clip')
+  bookInk.frame(now + 100, rig, pose)
+  bookInk.frame(now + 200, rig, pose)
+  expect(rect).toHaveBeenCalledWith(20, 30, 300, 350)
+  expect(clip).toHaveBeenCalled()
 })
