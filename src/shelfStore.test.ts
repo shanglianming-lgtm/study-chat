@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { initialLibrary, refFor, type LeafFile, type Source, type Turn } from './library'
+import type { WireMessage } from './provider'
 
 const { loadShelf, storeShelf, libraryFile } = vi.hoisted(() => ({
   loadShelf: vi.fn<() => Promise<{ value: ReturnType<typeof initialLibrary>; revision: number }>>(),
@@ -89,4 +90,22 @@ it('keeps composer edits made while preparing an attachment', async () => {
     pending: [{ id: 'file-2' }],
     turns: [{ q: 'Sent question', a: 'OK', input: [attachment] }],
   })
+})
+
+it('sends a follow-up without retransmitting restricted previous answers', async () => {
+  const privateAnswer = 'There are several ideas here.'
+  const { shelf, id } = await setup('What about earlier?', [
+    { ...answer, a: privateAnswer }, { ...answer, id: 'turn-2', a: 'Shareable answer' },
+  ])
+  const send = vi.fn(async (_url: string, _init: RequestInit) => completion('OK'))
+  vi.stubGlobal('fetch', send)
+  await shelf.submit(id)
+  expect(send).toHaveBeenCalledTimes(1)
+  const wire = String(send.mock.lastCall?.[1].body)
+  const { messages }: { messages: WireMessage[] } = JSON.parse(wire)
+  expect(messages[0].content).toContain('Shareable answer')
+  expect(messages.filter(({ role }) => role === 'assistant')).toEqual([{ role: 'assistant', content: 'Shareable answer' }])
+  expect(messages.at(-1)).toEqual({ role: 'user', content: 'What about earlier?' })
+  expect(wire).not.toContain(privateAnswer)
+  expect(shelf.volume(id).turns.map(({ a }) => a)).toEqual([privateAnswer, 'Shareable answer', 'OK'])
 })

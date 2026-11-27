@@ -14,10 +14,13 @@ export async function credential(url: string, key?: string, remove = false) {
 type Json = Record<string, any>
 export type WireMessage = { role: string; content: string | Json[] }
 const restrictedText = /思[维維]([链鏈路]|[过過]程)?|想法|念[头頭]|思[考路绪緒]|推理|內心獨白|内心独白|\b(?:chain[\s_-]*of[\s_-]*thoughts?|thoughts?|thinking|think|reasoning|ideas?|inner[\s_-]+monologue|cot)\b/iu
-function checkText(text: string, where: string) {
+export function shareableText(text: string) {
   const words = text.normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '')
     .replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ')
-  if (restrictedText.test(words))
+  return !restrictedText.test(words)
+}
+function checkText(text: string, where: string) {
+  if (!shareableText(text))
     throw new Error(where + '含有受限表述，已保留在本机。')
 }
 export function checkMessages(messages: WireMessage[]) {

@@ -20,7 +20,7 @@ import {
   type Note,
   type ModuleName,
 } from './library'
-import { checkMessages, complete, inputParts, type WireMessage, type ReturnedFile } from './provider'
+import { checkMessages, complete, inputParts, shareableText, type WireMessage, type ReturnedFile } from './provider'
 import { selectedEffort } from './modelSupport'
 
 let state = initialLibrary(),
@@ -413,7 +413,8 @@ export async function submit(id: string, retryId?: string) {
   }
   try {
     const keys = await planContext(b, q, files, signal),
-      context: string[] = []
+      context: string[] = [],
+      history = m.source.id === 'study' ? before : before.map((t) => shareableText(t.a) ? t : { ...t, a: '' })
     record('决策', modelFor(b, b.decision).id + ' · ' + (keys.length ? keys.join(', ') : '直接回答'))
     if (keys.includes('memory')) {
       context.push('Memory\n' + b.memory)
@@ -426,7 +427,7 @@ export async function submit(id: string, retryId?: string) {
     if (keys.includes('history')) {
       context.push(
         'Earlier exchanges\n' +
-          before
+          history
             .slice(-3)
             .map((t) => t.q + '\n' + t.a)
             .join('\n')
@@ -461,7 +462,7 @@ export async function submit(id: string, retryId?: string) {
             context.join('\n\n'),
         },
       ]
-      for (const t of before) {
+      for (const t of history) {
         wire.push({ role: 'user', content: await inputParts(t.q, t.input) })
         if (t.a) wire.push({ role: 'assistant', content: t.a })
       }
