@@ -20,7 +20,7 @@ import { editVolume } from './shelfStore'
 import { volumeSections } from './volumeEdition'
 type PageTurn = TurnFaces & {
   source: number; next: number; grip: number; pointer: number | null
-  startX: number; width: number; target: number; landing: 0 | 1 | null
+  startX: number; startY: number; dragged: boolean; width: number; target: number; landing: 0 | 1 | null
   wake?: () => void
 }
 function snapshot(node: HTMLElement) {
@@ -160,7 +160,8 @@ export default function PrintedEdition({
     const pending: PageTurn = {
       source: pageIndex, next, direction, front: snapshot(front), under: under && snapshot(under),
       grip: event ? Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) : .5,
-      pointer: event?.pointerId ?? null, startX: event?.clientX ?? 0, width: rect.width,
+      pointer: event?.pointerId ?? null, startX: event?.clientX ?? 0, startY: event?.clientY ?? 0,
+      dragged: false, width: rect.width,
       target: event ? pullProgress(0, rect.width, single) : 1, landing: event ? null : 1,
     }
     if (event) event.currentTarget.setPointerCapture(event.pointerId)
@@ -180,13 +181,15 @@ export default function PrintedEdition({
     const pointer = t.pointer
     function change(e: PointerEvent) {
       if (e.pointerId !== pointer || t!.landing !== null) return
+      // Remember travel even when a pulled sheet comes back to its origin.
+      if (Math.hypot(e.clientX - t!.startX, e.clientY - t!.startY) > 8) t!.dragged = true
       t!.target = pullProgress((t!.startX - e.clientX) * t!.direction, t!.width, single)
       t!.wake?.()
     }
     function finish(e: PointerEvent) {
       if (e.pointerId !== pointer || t!.landing !== null) return
       change(e)
-      t!.landing = e.type === 'pointerup' && t!.target >= .5 ? 1 : 0
+      t!.landing = e.type === 'pointerup' && (!t!.dragged || t!.target >= .5) ? 1 : 0
       t!.target = t!.landing
       if (spread!.hasPointerCapture(pointer)) spread!.releasePointerCapture(pointer)
     }
