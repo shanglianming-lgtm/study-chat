@@ -1,0 +1,63 @@
+书房 Chat   /   窗边读写组
+独立模型资产 · Blender 4.3.2 · GLB 2.0
+
+尺寸与文件
+以下尺寸为实际 GLB 重导入后的宽 × 深 × 高，单位为米。窗组为关闭姿态，尺寸包含突出的木窗台。短墙总深计入踢脚线。三角面按每个导出场景实际实例计数。
+
+部件 | 文件 | 米 | 三角面 | 字节 | 主节点
+书桌 | Study_Desk.glb | 1.4 × 0.65 × 0.74 | 4,000 | 721,992 | Study_Desk
+扶手椅 | Study_Chair.glb | 0.5429 × 0.5226 × 0.8175 | 9,680 | 973,280 | Study_Chair
+开洞短墙 | Study_ShortWall.glb | 2.88 × 0.258 × 2.355 | 572 | 62,996 | Study_ShortWall
+窗组（关闭，含窗台） | Study_Window.glb | 2.26 × 0.377 × 1.258 | 9,136 | 1,176,044 | Study_Window
+日景背景板 | Exterior_Day.glb | 5.25 × 0 × 3.5 | 2 | 370,796 | Exterior_Backdrop
+暮景背景板 | Exterior_Dusk.glb | 5.25 × 0 × 3.5 | 2 | 312,600 | Exterior_Backdrop
+
+可编辑源文件 Study_WindowDesk.blend  ·  1,646,442 字节  ·  内含 9 张已打包位图。
+
+装配
+1 Blender 单位 = 1 米。Blender 中 +Z 向上、+Y 指向室外。glTF / Three.js 中 +Y 向上、−Z 指向室外。桌、椅和墙的原点均在地面支承平面上。
+以墙的室内面中心落地点为原点，Three.js 推荐位置按 (X, Y, Z) 给出。所有根节点在单件 GLB 中的默认位置均为 (0, 0, 0)。
+  Study_ShortWall    (0, 0, 0)
+  Study_Desk          (0.250, 0, 0.520)
+  Study_Chair         (0.205, 0, 1.180)
+  Study_Window        (0, 0.880, 0)
+  Exterior_Backdrop   (0.180, 1.560, −1.180)
+也可将窗根节点直接挂到墙的 Socket_Window，或将椅根节点挂到桌的 Socket_ChairFloor，并使用单位局部变换。背景板原点在画面中心，平面向室内。日景与暮景共用安装位置，选其一。
+
+读写与座位
+桌面 1.400 × 0.650 米，高 0.740 米。桌腿和椅腿的脚底已切平。坐垫顶高 0.460 米，默认坐姿视点高 1.170 米。
+以下坐标均为对应资产根节点下的 glTF 局部坐标，单位为米。
+  Anchor_Book             (−0.176, 0.740, 0.061)    书脊中点在桌面的接触位置，书头朝局部 −Z。
+  Anchor_Writing          ( 0.287, 0.740, 0.025)    0.440 × 0.310 米无障碍写作区。
+  Socket_ChairFloor       (−0.045, 0,     0.660)    椅子安装原点。
+  Anchor_Seat             ( 0,     0.460,−0.008)    坐垫表面中心。
+  Anchor_SeatedEye        ( 0,     1.170, 0.055)    椅上的 24 mm 原生透视相机，朝窗。
+  Anchor_ReadingCamera    (−0.045, 1.170, 0.715)    桌上的 29 mm 原生透视相机，朝向展开书页。
+  Anchor_ReadingTarget    (−0.110, 0.757, 0.035)    阅读视线目标。
+封面按 0.240 × 0.160 米。双页允许 0.330 × 0.240 米占地，与写作区间隔 0.078 米。预览以空白书样、便笺和铅笔示范比例。
+两台相机均以本地 −Z 为视线、+Y 为相机上方，可从相应 GLTFLoader 结果的 cameras 列表或按节点名称取用。
+
+窗与天气
+Wall_PiercedShell 为连续的穿洞墙壳。结构洞口宽 2.180 米、高 1.240 米、下缘离地 0.880 米。洞侧、洞顶、洞底都有真实表面，墙芯进深 0.240 米。
+宽固定扇在左、窄活动扇在右。Sash_Hinge_R 以右侧合页轴心内开 68°。Latch_Spindle 在执手转轴上。活动窗扇下缘在安装后比桌面高 0.2015 米。
+Window_Open 与 Window_Close 各长 2.000 秒。打开时前 0.417 秒释放执手，随后推开窗扇。关闭动作先收扇，再锁回执手。GLB 初始为闭窗。源文件时间线启用 Window_Open，1 / 11 / 49 帧分别为锁闭、解锁、全开。源文件默认停在第 43 帧以展示结构。
+Glass_Fixed 与 Glass_Sash 是独立透明网格。Weather_Fixed 与 Weather_Sash 各有 0–1 UV，向室内离开对应玻璃 2.2 毫米。默认 RGBA 贴图的透明度为零。给天气面替换材质即可显示雨痕或凝露。活动天气面与活动玻璃均属于 Sash_Hinge_R。
+背景板有日景和暮景两个可互换 GLB，使用 glTF 的 KHR_materials_unlit 材质，贴图内嵌。替换 Exterior_Plate 的材质或整个背景节点均可。室内光照单独控制。
+
+源文件与预览
+源文件的 01–05 集合依次包含书桌、椅子、短墙、窗、庭景。P1–P4 收纳可隐藏的比例书样、灯、窗帘、地台、摄影灯和相机。桌、椅和窗仍可逐个编辑木件、软包、型材与五金。预览 JPG 由这些模型渲染。
+庭景采用 ImageGen 内置生成。日景提示为以平视观察日本山麓花园，远处蓝山、野草、白绣球、小径与左侧落叶树，克制的胶片色彩。暮景沿用同一构图，改为日落后二十分钟的蓝灰色山脊与薄暖地平线。两张贴图均为 1536 × 1024 像素。
+
+交付核查
+在六个各自清空的 Blender 场景内分别导入 GLB，核对根节点、米制包围尺寸、三角面、材质、打包贴图和父子关系。窗口开关各在 0、0.417、1、1.583、2 秒取样。核对了执手随动、固定/移动玻璃分属和相机的 glTF 原始朝向。九条射线穿过洞口，四组射线测得墙芯厚 0.240 米。
+六个最终 GLB 另经过 Khronos glTF Validator 验证，均为零错误、零警告。Three.js r187 在独立 Node 环境中用 GLTFLoader 读取嵌入的真实位图、原生相机和两段动画。AnimationMixer 复现了 0°–68° 开关，按两处安装节点装配后，两个相机的视点重合。浏览器 WebGL 画面未纳入验收。预览由 Blender Cycles 渲染。
+核验范围为独立资产。应用集成待项目接入时验证。
+
+庭景贴图制作记录
+内置 ImageGen 生成。独立 JPEG 位于整包的 Textures 目录，另外内嵌于对应 GLB 和 Blender 文件。
+
+Textures/Garden_Day.jpg
+Use case: photorealistic-natural. Asset type: standalone outdoor environment plate for a modern reading nook in Blender. Wide landscape 3:2 or widescreen, photographed from eye height across a tranquil Japanese foothill garden in morning light. Airy powder-blue sky occupies the upper 38 percent, distant layers of hazy blue hills in the middle, softly sunlit meadow and loose white hydrangeas close to the lower edge with a subtle narrow gravel path winding away. One graceful slender deciduous tree and its airy branches frame only the far left edge. Silvery sage and muted fresh leaf green, warm pale grasses, distant blue. Naturalistic intimate editorial garden photography on fine-grain film, delicate atmospheric perspective, sophisticated restrained color, light from upper left. No buildings, people, furniture, frames, glazing, lettering or indoor elements. Single continuous outdoor view edge to edge.
+
+Textures/Garden_Dusk.jpg
+Use case: lighting-weather. Edit the outdoor garden photograph provided, retaining exactly the same camera, framing, landscape silhouettes, leaves, gravel path and hydrangeas. Change the time of day only, to quiet twilight twenty minutes after sunset: a muted periwinkle and powder-blue sky, pale peach glow very low on the horizon, soft cool indigo distant ridges, dark muted teal shrubs with a little detail still visible in the blooms. Lose the direct sunlight through the left tree. A naturally exposed blue-hour garden photograph, restrained colors and delicate atmospheric perspective, no houses, lights, people, furniture, windows, frames or typography. Preserve the original aspect ratio.

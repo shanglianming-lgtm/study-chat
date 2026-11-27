@@ -1,0 +1,156 @@
+/* The printed type area is shared by the live pages and the pagination measure. */
+.app {
+  --book-type: "Crimson Text", "Noto Serif SC", Georgia, serif;
+  --book-ink: #2d2924;
+  --book-size: clamp(15px, 2.42vh, 19px);
+}
+.reader-surface { --edition-leaf: min(43vw, 520px); }
+.desk-surface { --edition-leaf: var(--leaf-width); }
+.app.physical-reading .reader-surface .paper {
+  padding-block: calc(var(--edition-leaf) * .11) calc(var(--edition-leaf) * .147);
+  padding-inline: calc(var(--edition-leaf) * .146) calc(var(--edition-leaf) * .02);
+  font-family: var(--book-type);
+}
+.app.physical-reading .reader-surface .paper:is(.recto,.notes-paper) {
+  padding-inline: calc(var(--edition-leaf) * .02) calc(var(--edition-leaf) * .146);
+}
+@media (min-width:860px) {
+  .app.physical-reading .flat-book:not(.one-paper) .paper.verso { padding-inline-end: calc(var(--edition-leaf) * .09); }
+  .app.physical-reading .flat-book:not(.one-paper) .paper.recto { padding-inline-start: calc(var(--edition-leaf) * .09); }
+}
+.app.physical-reading .reader-surface .paper-body { margin: 0; }
+.app.physical-reading .reader-surface .prose, .app .prose.pagination-probe {
+  font: 400 var(--book-size)/1.37 var(--book-type);
+  letter-spacing: 0;
+  color: var(--book-ink);
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  text-rendering: optimizeLegibility;
+  overflow-wrap: break-word;
+}
+.app .prose .manuscript-text { display: flow-root; }
+.app.physical-reading .reader-surface .paper:lang(zh) .prose, .app .prose.pagination-probe:lang(zh) {
+  font-size: max(15px, var(--book-size));
+  line-height: 1.62;
+}
+.app .prose p {
+  margin: 0;
+  text-align: justify;
+  text-indent: 0;
+  hyphens: auto;
+  orphans: 2;
+  widows: 2;
+}
+.app .prose p.indented:not(.continued), .app .live-ink p + p, .app .written-entry p + p { text-indent: 1.18em; }
+.app .prose :is(h1,h2,h3,h4,h5,h6) {
+  font-family: var(--book-type);
+  font-weight: 400;
+  color: var(--book-ink);
+  letter-spacing: 0;
+  text-transform: none;
+  text-wrap: balance;
+}
+.app .prose h1 { font-size: 1.88em; line-height: 1.08; margin: 0 0 .88em; }
+.app .prose h1.chapter-opening { font-size: 2.12em; margin: 1.65em 0 1.35em; text-align: center; }
+.app .prose .chapter-number { display: block; font: 400 .36em/1.4 var(--book-type); text-transform: uppercase; letter-spacing: .15em; margin: 0 0 1.6em; }
+.app .prose h2 { font-size: 1.16em; line-height: 1.25; font-style: italic; margin: 1.12em 0 .5em; }
+.app .prose :is(h3,h4,h5) { font-size: 1em; line-height: 1.3; font-weight: 600; margin: .95em 0 .38em; }
+.app .prose h6 { font-size: .95em; line-height: 1.4; font-style: italic; margin: .95em 0 .48em; }
+.app .prose h6:first-child { margin-top: 0; }
+.app .prose blockquote { margin: .77em 1.1em; padding: 0; border: 0; color: inherit; font: 400 .93em/1.47 var(--book-type); }
+.app .prose :is(ul,ol) { margin: .65em 0; padding-inline-start: 1.45em; }
+.app .prose li { padding-inline-start: .12em; margin: .12em 0; }
+.app .prose pre { border: 0; border-radius: 0; background: none; color: inherit; padding: 0 0 0 1em; margin: .95em 0; font-size: .72em; line-height: 1.5; }
+.app .prose code { font-family: Consolas, "Noto Serif SC", monospace; }
+.app .prose a { color: inherit; text-decoration-thickness: 1px; text-decoration-color: #776e6180; text-underline-offset: .15em; }
+.app .prose .process-record { border: 0; padding: 0; margin: 1em 0 0; }
+.app .prose .process-record summary { font: italic .95em/1.4 var(--book-type); color: inherit; letter-spacing: 0; }
+.app .printed-folio {
+  position: absolute;
+  inset-block-end: calc(var(--edition-leaf) * .055);
+  inset-inline: 0;
+  text-align: center;
+  font: 400 calc(var(--book-size) * .78)/1 var(--book-type);
+  font-variant-numeric: oldstyle-nums;
+  color: #4a443a;
+  pointer-events: none;
+}
+.app .edition-half-title { display: grid; height: 100%; align-items: start; padding-top: 28%; text-align: center; }
+.app .prose .edition-half-title h1 { font-size: 1.32em; line-height: 1.22; margin: 0; }
+.edition-half-title h1,.edition-title h1 { overflow-wrap: anywhere; }
+.edition-title .paper-field::placeholder,.edition-preface .paper-field::placeholder { opacity: 0; }
+.edition-title .paper-field:is(:hover,:focus-visible)::placeholder,
+.edition-preface .paper-field:is(:hover,:focus-visible)::placeholder { opacity: .65; }
+.edition-title { height: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 16%; }
+.app .prose .edition-title h1 { font-size: 2.32em; font-weight: 400; line-height: 1.03; margin: 0 0 1.05em; }
+.edition-title h1 em { font-weight: 400; }
+.edition-title .paper-field { text-align: center; }
+.edition-title .edition-author { font-size: 1em; }
+.edition-imprint { width: 100%; margin-top: auto; font-size: .9em; }
+.app .edition-copyright { position: absolute; bottom: 0; width: 100%; font-size: .82em; line-height: 1.42; }
+.app .edition-copyright p { text-align: start; margin: 0 0 .65em; }
+.app :is(.edition-title,.edition-copyright,.edition-preface) .paper-field { padding: 0; border: 0; border-radius: 0; }
+.app .prose .front-opening { text-align: center; margin: 1.3em 0 1.25em; }
+.app .edition-colophon { display: grid; height: 100%; align-content: center; justify-items: center; text-align: center; }
+.app .edition-colophon h1 { font: 400 1.05em/1.25 var(--book-type); font-variant-caps: small-caps; letter-spacing: .08em; }
+.app .edition-colophon p { font-size: .91em; text-align: center; }
+.app .edition-colophon i { white-space: nowrap; }
+.app .edition-contents { gap: .45em; }
+.app .edition-contents button span:nth-child(2) { overflow-wrap: anywhere; }
+.app .edition-toc { padding-block-start: 1.3em; }
+.app .edition-copyright { inset-inline-start: 0; }
+.app .reader-surface .spread { user-select: none; }
+.app .reader-surface .spread :is(input, textarea) { user-select: text; }
+.app .edition-preface h1, .app .edition-toc h1 { text-align: center; margin: 0 0 1.25em; }
+.edition-preface .paper-field { line-height: inherit; max-height: calc(100cqh - 4em); }
+.edition-contents { display: grid; align-content: start; }
+.edition-contents button { display: grid; grid-template-columns: 1.6em minmax(0,1fr) 2em; gap: .4em; text-align: start; padding: .27em 0; color: inherit; font: inherit; line-height: 1.32; }
+.contents-numeral,.contents-folio { font-variant-numeric: lining-nums tabular-nums; }
+.contents-folio { text-align: end; }
+.edition-contents button:hover,.edition-contents button:focus-visible { color: #514c3b; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .16em; }
+.physical-reading .reader-surface:focus { outline: 0; }
+.app .leaf-edge { position: absolute; inset-block: 0; width: clamp(22px,6%,34px); padding: 0; z-index: 3; background: transparent; border: 0; cursor: grab; touch-action: none; }
+.leaf-edge.forward { right: 0; }
+.leaf-edge.backward { left: 0; }
+.app .desk-surface .spread > .paper { overflow: visible; }
+.desk-surface .paper > .leaf-edge { inset-block: calc(-1 * var(--trim-y, 0px)); }
+.desk-surface .recto > .leaf-edge.forward,.desk-surface .verso > .leaf-edge.backward { width: calc(var(--trim-x, 0px) + clamp(24px, 5%, 32px)); }
+.desk-surface .recto > .leaf-edge.forward { right: calc(-1 * var(--trim-x, 0px)); }
+.desk-surface .verso > .leaf-edge.backward { left: calc(-1 * var(--trim-x, 0px)); }
+.spread[data-turning],.spread[data-turning] * { cursor: grabbing; }
+.spread[data-turning] > .leaf-host { display: block; }
+.app .leaf-edge:disabled { visibility: hidden; }
+.leaf-edge::after { content: ""; position: absolute; inset-block: 0; width: 2px; opacity: 0; background: linear-gradient(transparent, #a286555e 30% 70%, transparent); }
+.leaf-edge.forward::after { right: 0; }
+.leaf-edge.backward::after { left: 0; }
+.leaf-edge:focus-visible::after,.leaf-edge:hover::after { opacity: 1; }
+.app .leaf-edge:focus-visible { outline: 1px dotted #82765d; outline-offset: -2px; }
+.app .edition-toc h1 { font-size: 1.65em; }
+.app .writing-leaf h1 { font: 400 1.7em/1.1 var(--book-type); margin: .65em 0 1.1em !important; letter-spacing: 0 !important; }
+.app .edition-preface .paper-field,.app .in-page-composer .paper-field { font-family: var(--book-type); }
+.app.physical-reading .writing-leaf .in-page-composer { flex: 0 1 auto; }
+.app.physical-reading .writing-leaf .paper-field { flex: 0 1 auto; min-height: 4.2em; max-height: 47cqh; }
+.app .writing-leaf .ink-actions { border: 0; padding: 0; margin-top: .7em; }
+.app .ink-actions { font: 400 .85em/1.4 var(--book-type); color: #5b5246; }
+.app .ink-actions button { font: inherit; }
+.app .ink-actions small { font: italic .86em/1.4 var(--book-type); }
+.app .reader-menu { width: min(366px,92vw); padding: 27px 28px; background: #f7f4ec; color: #2d2924; }
+.app .reader-menu header h2 { font: 400 34px/1.1 var(--book-type); margin: 0; letter-spacing: 0; }
+.reader-menu .menu-title { display: block; text-align: start; padding: 0; margin: 1em 0 1.5em; font: italic 18px/1.25 var(--book-type); }
+.reader-menu .edition-contents { font: 400 18px/1.4 var(--book-type); }
+.reader-menu .menu-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 3px 12px; border-top: 1px solid #c5bcaa; margin-top: 25px; padding-top: 13px; }
+.menu-actions button { font: 13px/1.5 var(--serif); padding: 6px 0; text-align: start; }
+.menu-actions button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.reader-menu .menu-feedback { margin: 1em 0; font: 12px/1.6 var(--serif); }
+@media (max-width:859px) {
+  .reader-surface:not(.desk-surface) { --edition-leaf: min(78vw,480px); }
+  .app.physical-reading .reader-surface:not(.desk-surface) .paper:is(.recto,.verso,.notes-paper) {
+    padding-inline: max(25px, calc(var(--edition-leaf) * .083));
+  }
+}
+@media (max-aspect-ratio:1/1),(max-width:559px) {
+  .app.physical-reading .desk-surface .paper:is(.recto,.verso,.notes-paper) {
+    padding-inline: max(25px, calc(var(--edition-leaf) * .083));
+  }
+}

@@ -1,0 +1,138 @@
+.walk-canvas canvas {
+  touch-action: none;
+}
+.room-key-action {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.room-key-action:focus-visible {
+  bottom: 1.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  height: auto;
+  padding: 0.55rem 1rem;
+  clip-path: none;
+  border: 1px solid #ead7a7;
+  border-radius: 3px;
+  background: #28342cec;
+  color: #f3e7cc;
+  letter-spacing: 0.08em;
+}
+.room-paused {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  background: #20251f4d;
+}
+.room-paused button,
+.room-touch-pad button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #fff1d4;
+  background: #30382ecf;
+  border: 1px solid #dac9a36e;
+  border-radius: 50%;
+  touch-action: none;
+}
+.room-touch-pad {
+  display: none;
+}
+@media (pointer: coarse) {
+  .room-touch-pad {
+    position: absolute;
+    bottom: max(18px, env(safe-area-inset-bottom));
+    left: 18px;
+    display: grid;
+    grid-template-columns: repeat(3, 40px);
+    gap: 3px;
+  }
+  .room-touch-pad button {
+    width: 40px;
+    height: 40px;
+    opacity: 0.72;
+  }
+  .room-touch-pad button:first-child {
+    grid-column: 2;
+  }
+  .room-touch-pad button:nth-child(2) {
+    grid-column: 1;
+  }
+}
+.room-flat-entrance {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 45% 15%, #e5d6ac, #b7a38b 66%, #747263);
+}
+.room-flat-door {
+  display: grid;
+  place-items: start center;
+  position: relative;
+  width: min(40dvh, 75vw);
+  height: 76dvh;
+  border: 10px ridge #b3a38a;
+  box-shadow: 4px 7px 22px #53483d80;
+  background: linear-gradient(105deg, #536251, #324436);
+}
+.room-flat-door:before {
+  content: '';
+  position: absolute;
+  inset: 5%;
+  border: 5px ridge #56634e;
+}
+.room-flat-door span {
+  margin-top: 39%;
+  padding: 0.3em 0.9em;
+  color: #ebddb8;
+  background: #3d4c3f;
+  border: 2px ridge #baa178;
+  font: 500 clamp(16px, 3dvh, 34px) var(--serif);
+  letter-spacing: 0.25em;
+}
+.room-flat-door i {
+  position: absolute;
+  right: 8%;
+  top: 56%;
+  height: 7px;
+  width: 12%;
+  border-radius: 3px;
+  background: #bea472;
+}
+.room-flat-door:hover,
+.room-flat-door:focus-visible {
+  outline: 2px solid #f0d39d;
+}
+.flat-library-tools {
+  position: absolute;
+  inset-block-end: 17%;
+  display: flex;
+  gap: 1em;
+}
+.flat-library-tools button {
+  padding: 0.42em 1.15em;
+  color: #f3e4bd;
+  background: #354438;
+  border: 1px solid #b29768;
+  border-radius: 3px;
+}
+.room-flat-book {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: #394b40;
+  color: #f2e5c8;
+  padding: 1em 1.5em;
+  border-radius: 3px;
+}
