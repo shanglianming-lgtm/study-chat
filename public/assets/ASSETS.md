@@ -31,10 +31,10 @@ pass bakes the authored chestnut/umber brow and lash colours into RGBA textures
 (Blender's legacy colour-mix nodes are not portable), keeps the full smooth body
 and hand mesh, subdivides the face once, retains more garment folds, relaxes the
 rolled hem and exports opaque cotton with explicit roughness. The second pass
-rounds the upper-arm silhouette, smooths elbow/wrist/knee skin-weight transitions and retains a denser
-joint surface. A shared rest-space warp defines the waist/hip and a gently
-tapered thigh/knee/calf silhouette, and rounds the deltoid and forearm while
-tapering the elbow and wrist. The bodice, straps and belt follow the same
+smooths elbow/wrist/knee skin-weight transitions and retains a denser joint
+surface. A shared rest-space warp defines the waist/hip and gently tapers the
+limbs continuously, without enlarged joint caps or forearm/calf bulges.
+The bodice, straps and belt follow the same
 surface adjustments so they continue to fit the skin;
 head size, hands, feet, limb lengths and the skeleton remain unchanged.
 The authored three-guide hair locks gain rounded cross-sections and shorter,

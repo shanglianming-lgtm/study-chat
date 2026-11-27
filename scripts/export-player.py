@@ -110,6 +110,8 @@ def refine_silhouette(obj):
     # Keep head, hands, feet, limb lengths and the skeleton unchanged.
     def shape(co):
         x, y, z = co
+        if z < .20 or z > 1.33:
+            return
         torso = 1 - smoothstep((abs(x) - 0.13) / 0.07)
         waist = bell(z, 1.055, 0.085) * torso
         hip = bell(z, 0.90, 0.10) * torso
@@ -121,15 +123,13 @@ def refine_silhouette(obj):
             # A continuous thigh/knee/calf profile, not a cylindrical leg.
             center = side * (0.0465 + 0.010 * min(1, max(0, (z - .103) / .415))
                              + 0.020 * min(1, max(0, (z - .518) / .352)))
-            fullness = (1 + .08 * bell(z, .72, .12) - .035 * bell(z, .52, .070)
-                        + .040 * bell(z, .36, .12))
+            # Keep the authored anatomical contour and gently slim the whole
+            # run. Local positive caps/bellies read as swollen toy joints.
+            strength = smoothstep((z - .20) / .08) * (1 - smoothstep((z - .80) / .04))
+            fullness = 1 - strength * (.035 + .035 * bell(z, .36, .15))
             co.x = center + (co.x - center) * fullness
             center_y = .025 - .021 * min(1, max(0, (z - .103) / .415))
             co.y = center_y + (co.y - center_y) * fullness
-            # Anterior patella and posterior calf read as anatomy, not tubes.
-            front = smoothstep((center_y - y) / .025)
-            co.y -= .003 * bell(z, .525, .050) * front
-            co.y += .002 * bell(z, .36, .12) * (1 - front)
     if obj.data.shape_keys:
         for key in obj.data.shape_keys.key_blocks:
             for p in key.data:
@@ -141,8 +141,7 @@ def refine_silhouette(obj):
 
 def refine_joint_surface(obj, rig):
     # Skin and clothing share this deformation so straps stay above the deltoid.
-    # Shape the entire upper-arm/forearm run continuously: rounded deltoid,
-    # elbow taper, forearm belly and a slimmer wrist, rather than uniform tubes.
+    # A continuous gentle taper, not independent enlarged muscle/joint caps.
     for vertex in obj.data.vertices:
         co = vertex.co
         side = 'L' if co.x > 0 else 'R'
@@ -158,28 +157,16 @@ def refine_joint_surface(obj, rig):
         radial = co - center
         if radial.length > .095:
             continue
-        profile = (.25 * bell(distance, .040, .045)
-                   + .10 * bell(distance, .12, .055)
-                   - .17 * bell(distance, .219, .040)
-                   + .23 * bell(distance, .29, .050)
-                   - .21 * bell(distance, .426, .026))
+        upper_length = abs(upper.tail_local.x - upper.head_local.x)
+        lower_length = abs(lower.tail_local.x - lower.head_local.x)
+        if distance < upper_length:
+            profile = -.07 * smoothstep(distance / upper_length)
+        else:
+            profile = -.07 - .035 * smoothstep((distance - upper_length) / lower_length)
         # Fade to the torso and palm without changing the hand's knuckles.
         # Preserve the medial shoulder where the authored ribbon is attached.
         fade = smoothstep((distance - .025) / .040) * (1 - smoothstep((distance - .435) / .045))
         vertex.co += radial * profile * fade
-    # Keep a soft deltoid/elbow/knee cap instead of letting a narrow hinge read
-    # as a separate tube. Small radial additions taper continuously to zero.
-    for side in ('L', 'R'):
-        for name, radius, volume in [('LowerArm', .055, .004),
-                                     ('LowerLeg', .060, .001)]:
-            bone = rig.data.bones['J_Bip_' + side + '_' + name]
-            axis = (bone.tail_local - bone.head_local).normalized()
-            for vertex in obj.data.vertices:
-                delta = vertex.co - bone.head_local
-                influence = smoothstep(1 - delta.length / radius)
-                radial = delta - axis * delta.dot(axis)
-                if influence and radial.length > .005:
-                    vertex.co += radial.normalized() * volume * influence
 
 
 def refine_joints(obj, rig):
