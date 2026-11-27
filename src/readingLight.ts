@@ -17,6 +17,20 @@ export function readingLight(software: boolean) {
     transparent: true, opacity: .08, blending: THREE.AdditiveBlending,
     depthWrite: false,
   })
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = 'varying vec2 vLightUV;\n' + shader.vertexShader.replace(
+      '#include <begin_vertex>', '#include <begin_vertex>\nvLightUV = uv;')
+    shader.fragmentShader = 'varying vec2 vLightUV;\n' + shader.fragmentShader.replace(
+      '#include <opaque_fragment>', `
+        // Expose the local, physically evaluated PointLight contribution,
+        // not a constant-alpha rectangle. Feather the sampled safe-area
+        // boundary into the already-lit physical paper underneath.
+        float irradiance = max(outgoingLight.r, max(outgoingLight.g, outgoingLight.b));
+        float edge = min(min(vLightUV.x, 1.0-vLightUV.x), min(vLightUV.y, 1.0-vLightUV.y));
+        diffuseColor.a *= smoothstep(0.025, 0.35, irradiance) * smoothstep(0.0, 0.08, edge);
+        #include <opaque_fragment>`)
+  }
+  material.customProgramCacheKey = () => 'scoped-real-point-light-v1'
   const leaf = new THREE.Mesh(geometry, material)
   scene.add(leaf, light)
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, .01, 3)
