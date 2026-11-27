@@ -147,12 +147,17 @@ impl Chat {
             let mut bytes = response.bytes_stream();
             let mut decoder = sse::Decoder::default();
             let mut json_bytes = Vec::new();
+            let mut received = 0;
             while let Some(chunk) = tokio::time::timeout(self.idle_timeout, bytes.next())
                 .await
                 .map_err(|_| "回应流超时。")?
             {
                 let chunk = chunk.map_err(|_| "读取回应时连接中断。")?;
                 if sse {
+                    received += chunk.len();
+                    if received > 4 * 1024 * 1024 {
+                        return Err("回应流过大，已停止接收。".into());
+                    }
                     for event in decoder.push(&chunk)? {
                         let done = event.trim() == "[DONE]";
                         on_data(event);

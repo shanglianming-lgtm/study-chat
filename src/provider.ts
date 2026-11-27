@@ -152,7 +152,8 @@ async function request(
   if (response.headers.get('content-type')?.includes('text/event-stream') && response.body) {
     const reader = response.body.getReader(),
       decode = new TextDecoder()
-    let doneMarker = false
+    let doneMarker = false,
+      received = 0
     const consume = sseReader((data) => {
       onData(data)
       if (data.trim() === '[DONE]') doneMarker = true
@@ -161,6 +162,8 @@ async function request(
       while (!doneMarker) {
         const next = await reader.read()
         if (next.done) break
+        received += next.value.byteLength
+        if (received > 4 * 1024 * 1024) throw new Error('回应流过大，已停止接收。')
         consume(decode.decode(next.value, { stream: true }))
       }
       consume(decode.decode(), true)

@@ -136,6 +136,28 @@ describe('official provider adapters', () => {
     expect(result).toMatchObject({ text: 'OK', files: [{ name: 'one.txt', content: 'ok' }] })
     expect(note).not.toHaveBeenCalled()
   })
+  it.each([router, openai])('stops an oversized stream from %s before delivering all its text', async (url) => {
+    const delta = 'a'.repeat(256 * 1024)
+    const packet = url === openai
+      ? { type: 'response.output_text.delta', output_index: 0, content_index: 0, delta }
+      : { choices: [{ delta: { content: delta } }] }
+    const chunk = new TextEncoder().encode('data: ' + JSON.stringify(packet) + '\n\n')
+    const cancel = vi.fn()
+    let remaining = 20
+    const body = new ReadableStream({
+      pull(controller) {
+        if (remaining-- > 0) controller.enqueue(chunk)
+        else controller.close()
+      },
+      cancel,
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })))
+    const ink = vi.fn()
+    await expect(complete(source(url), 'test', question, 'default', true, signal, { ink })).rejects.toThrow('回应流过大')
+    expect(ink.mock.calls.length).toBeGreaterThan(0)
+    expect(ink.mock.calls.length).toBeLessThan(20)
+    expect(cancel).toHaveBeenCalledOnce()
+  })
   it.each([claude, google, router, openai])('checks text and opaque attachments before sending to %s', async (url) => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
