@@ -4,6 +4,7 @@ import type { DeskReading, PageSide } from './deskReading'
 import { INK_SPELL } from './inkSpell'
 import { createPageBrush } from './pageBrush'
 import { handViewport } from './handViewport'
+import { cachedPageBrush } from './cachedPageBrush'
 
 export type HandSignal = { action: HandAction; side: PageSide; u: number; v: number; width?: number; seq: number }
 export function readingHand(avatar: THREE.Group, software = false) {
@@ -162,6 +163,8 @@ export function readingHand(avatar: THREE.Group, software = false) {
   sun.position.set(-2, 3, -1)
   scene.add(sun)
   let renderer: THREE.WebGLRenderer | undefined,
+    cached: ReturnType<typeof cachedPageBrush>,
+    brushSeq = -1, brushWidth = 0, brushHeight = 0,
     unavailable = false,
     lastPaint = 0,
     start = 0,
@@ -170,11 +173,14 @@ export function readingHand(avatar: THREE.Group, software = false) {
     entry = new THREE.Vector3()
   function hide() {
     if (renderer) renderer.domElement.hidden = true
+    cached?.hide()
     signal = undefined
   }
   return {
     play(s: HandSignal, now: number) {
       if (meshes.length && !unavailable && !reduced.matches) {
+        cached?.hide()
+        brushSeq = -1
         signal = s
         start = now
         lastPaint = 0
@@ -211,12 +217,21 @@ export function readingHand(avatar: THREE.Group, software = false) {
         // Otherwise first-paint compilation can eat the entire lateral pass.
         for (const mesh of meshes) (mesh.material as THREE.MeshStandardMaterial).opacity = 0
         renderer.render(scene, camera)
+        if (software) cached = cachedPageBrush(renderer, scene, hand, meshes, bounds, sweepPalm)
       }
       if (!signal) return
       const brush = signal.action === 'stroke'
       const t = (now - start) / (brush ? INK_SPELL.duration : signal.action === 'sweep' ? 1000 : 850)
       if (t >= 1) {
         hide()
+        return
+      }
+      if (brush && cached) {
+        renderer.domElement.hidden = true
+        if (brushSeq !== signal.seq) {
+          brushSeq = signal.seq; brushWidth = w; brushHeight = h
+          cached.play(signal, rig, camera, w, h, now - start)
+        } else if (brushWidth !== w || brushHeight !== h) hide()
         return
       }
       // draw() already runs on requestAnimationFrame; do not skip 60Hz frames.
@@ -264,6 +279,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
     hide,
     dispose() {
       hide()
+      cached?.dispose()
       renderer?.domElement.remove()
       renderer?.dispose()
       for (const m of meshes) {
