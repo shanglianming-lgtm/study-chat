@@ -218,9 +218,10 @@ export function readingHand(avatar: THREE.Group, software = false) {
       // draw() already runs on requestAnimationFrame; do not skip 60Hz frames.
       // GPU identity can be masked. Adapt the optional overlay to measured
       // frame gaps too, rather than silently staying on an expensive path.
-      if (lastPaint && now - lastPaint > 60 && renderer.getPixelRatio() > .35)
+      const paintClock = performance.now()
+      if (lastPaint && paintClock - lastPaint > 60 && renderer.getPixelRatio() > .35)
         renderer.setPixelRatio(Math.max(.35, renderer.getPixelRatio() * .6))
-      lastPaint = now
+      lastPaint = paintClock
       renderer.domElement.hidden = false
       if (
         renderer.domElement.clientWidth !== w ||
