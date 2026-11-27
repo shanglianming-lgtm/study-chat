@@ -159,6 +159,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
   scene.add(sun)
   let renderer: THREE.WebGLRenderer | undefined,
     unavailable = false,
+    lastPaint = 0,
     start = 0,
     signal: HandSignal | undefined
   const location = new THREE.Vector3(),
@@ -172,6 +173,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
       if (meshes.length && !unavailable && !reduced.matches) {
         signal = s
         start = now
+        lastPaint = 0
       }
     },
     draw(now: number, rig: DeskReading, camera: THREE.PerspectiveCamera, w: number, h: number) {
@@ -181,7 +183,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
         try {
           renderer = new THREE.WebGLRenderer({
             alpha: true,
-            antialias: !software,
+            antialias: false,
             powerPreference: 'low-power',
             premultipliedAlpha: true,
           })
@@ -193,7 +195,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
         renderer.toneMapping = THREE.ACESFilmicToneMapping
         // Skin is a soft decorative overlay. On the software renderer avoid
         // multisampling millions of translucent PBR pixels on every frame.
-        renderer.setPixelRatio(Math.min(software ? .5 : 1.25, window.devicePixelRatio || 1))
+        renderer.setPixelRatio(Math.min(software ? .5 : .75, window.devicePixelRatio || 1))
         renderer.domElement.className = 'reading-hand'
         // Preserve the character branch's hidden/narrow/reduced-motion fix.
         renderer.domElement.style.removeProperty('display')
@@ -214,6 +216,11 @@ export function readingHand(avatar: THREE.Group, software = false) {
         return
       }
       // draw() already runs on requestAnimationFrame; do not skip 60Hz frames.
+      // GPU identity can be masked. Adapt the optional overlay to measured
+      // frame gaps too, rather than silently staying on an expensive path.
+      if (lastPaint && now - lastPaint > 60 && renderer.getPixelRatio() > .35)
+        renderer.setPixelRatio(Math.max(.35, renderer.getPixelRatio() * .6))
+      lastPaint = now
       renderer.domElement.hidden = false
       if (
         renderer.domElement.clientWidth !== w ||
