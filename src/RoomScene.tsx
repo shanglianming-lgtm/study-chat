@@ -609,6 +609,11 @@ export default function RoomScene(props: Props) {
     function animate(now: number) {
       if (disposed || unavailable.current) return
       frame = requestAnimationFrame(animate)
+      const environmentUpdate = room.updateEnvironment(now)
+      if (environmentUpdate) {
+        dirty = true
+        if (environmentUpdate === 2) renderer.shadowMap.needsUpdate = true
+      }
       const dt = Math.min(0.1, Math.max(0, (now - last) / 1000))
       last = now
       if (doorClosing !== null) {
