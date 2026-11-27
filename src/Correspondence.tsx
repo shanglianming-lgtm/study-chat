@@ -519,9 +519,15 @@ export default function Correspondence({
   const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   function dismiss() {
     if (retiring) return
+    const el = floatingRef.current
+    // Exit is decorative: an already-dismissed destructive menu must be inert.
+    if (el) {
+      el.inert = true
+      if (el.contains(document.activeElement) && anchor.current instanceof HTMLElement)
+        anchor.current.focus({ preventScroll: true })
+    }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setFloat(null)
     else {
-      const el = floatingRef.current
       if (el) {
         // Interrupt a half-finished lift at its current frame, without a pop.
         const style = getComputedStyle(el)
@@ -745,6 +751,7 @@ export default function Correspondence({
               ((isMenu && !isProcess) || float.kind === 'undo' ? 'action-words' : 'detail-words')
             }
             role="dialog"
+            inert={retiring}
             data-retiring={retiring || undefined}
             onAnimationEnd={(e) => {
               if (e.target === e.currentTarget && e.animationName === 'settle-ink') {
