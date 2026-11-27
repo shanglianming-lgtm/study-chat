@@ -145,6 +145,7 @@ export function readingHand(avatar: THREE.Group, software = false) {
       roughness: 0.83,
       side: THREE.DoubleSide,
       transparent: true,
+      depthWrite: false, // Faded wrist fragments must not occlude later skin triangles.
       forceSinglePass: true,
     })
     // Keep the avatar geometry and .76 scale untouched. This view-only wrist

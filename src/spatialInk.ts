@@ -116,8 +116,10 @@ function paint(target: Target, now: number, reduced: boolean) {
     // the body color and its two-pass 25px peak remain the specified curve.
     if (life.glow > .01) {
       ctx.strokeStyle = '#FFD700'
-      ctx.lineWidth = .7 * life.glow
+      ctx.lineWidth = 1.15 * life.glow
+      ctx.shadowBlur = 3 * life.glow
       ctx.strokeText(glyph.text, 0, ascent)
+      ctx.shadowBlur = 25 * life.glow
     }
     ctx.fillText(glyph.text, 0, ascent)
     if (life.phase === 1) ctx.fillText(glyph.text, 0, ascent)
