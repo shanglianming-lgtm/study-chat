@@ -392,7 +392,12 @@ export async function submit(id: string, retryId?: string) {
       notes: [],
       state: 'writing',
     }
-    editVolume(id, { turns: [...b.turns, turn], draft: '', pending: [] })
+    const current = volume(id)
+    editVolume(id, {
+      turns: [...current.turns, turn],
+      draft: current.draft === b.draft ? '' : current.draft,
+      pending: current.pending.filter((f) => !files.includes(f)),
+    })
   } else announce()
   const record = (kind: string, text: string) => {
     if (!text) return

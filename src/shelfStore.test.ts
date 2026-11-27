@@ -73,3 +73,20 @@ it('checkpoints the previous answer and files until a retry completes', async ()
   expect(checkpoint).toEqual(answer)
   expect(shelf.volume(id).turns[0]).toMatchObject({ a: 'Replacement', state: 'done', output: [] })
 })
+
+it('keeps composer edits made while preparing an attachment', async () => {
+  const { shelf, id } = await setup('Sent question', [], [attachment])
+  let finishFile!: (file: Blob) => void
+  libraryFile.mockImplementation(() => new Promise<Blob>((resolve) => { finishFile = resolve }))
+  vi.stubGlobal('fetch', vi.fn(async () => completion('OK')))
+  const pending = shelf.submit(id)
+  expect(libraryFile).toHaveBeenCalledWith(attachment.id)
+  shelf.editVolume(id, { draft: 'Unsent follow-up', pending: [attachment, { ...attachment, id: 'file-2', n: 2 }] })
+  finishFile(new Blob(['abc']))
+  await pending
+  expect(shelf.volume(id)).toMatchObject({
+    draft: 'Unsent follow-up',
+    pending: [{ id: 'file-2' }],
+    turns: [{ q: 'Sent question', a: 'OK', input: [attachment] }],
+  })
+})
