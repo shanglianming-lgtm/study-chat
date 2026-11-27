@@ -55,6 +55,7 @@ type Float = {
   turn?: string
   user?: boolean
   file?: LeafFile
+  cue?: number
 }
 function paperPoint(el: Element, side: PageSide) {
   const sheet = el.closest('.paper') as HTMLElement
@@ -488,49 +489,85 @@ export default function Correspondence({
   onManage: () => void
 }) {
   const [float, setFloat] = useState<Float | null>(null),
+    [retiring, setRetiring] = useState(false),
     [feedback, setFeedback] = useState(''),
     list = useRef<HTMLDivElement>(null),
     body = useRef<HTMLDivElement>(null),
-    anchor = useRef<Element | null>(null)
+    anchor = useRef<Element | null>(null),
+    cue = useRef(0)
   const floatingRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const el = floatingRef.current
     if (!el) return
-    const measure = () => el.style.setProperty('--float-height', el.offsetHeight + 'px')
+    const measure = () => {
+      el.style.setProperty('--float-height', el.offsetHeight + 'px')
+      const sheet = el.parentElement!
+      const x = (float?.x ?? .5) * sheet.clientWidth - el.offsetLeft,
+        y = (float?.y ?? .5) * sheet.clientHeight - el.offsetTop
+      // Work in the leaf's local coordinates, not the room's projected pixels.
+      el.style.setProperty('--lift-x', (x - el.offsetWidth / 2) * .32 + 'px')
+      el.style.setProperty('--lift-y', (y - el.offsetHeight / 2) * .32 + 'px')
+      el.style.setProperty('--spark-x', Math.max(0, Math.min(el.offsetWidth, x)) + 'px')
+      el.style.setProperty('--spark-y', Math.max(0, Math.min(el.offsetHeight, y)) + 'px')
+      el.style.transformOrigin = `${x}px ${y}px`
+    }
     measure()
     const obs = new ResizeObserver(measure)
     obs.observe(el)
     return () => obs.disconnect()
-  }, [float?.kind])
+  }, [float?.cue, float?.kind, float?.x, float?.y])
   const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  function dismiss() {
+    if (retiring) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setFloat(null)
+    else {
+      const el = floatingRef.current
+      if (el) {
+        // Interrupt a half-finished lift at its current frame, without a pop.
+        const style = getComputedStyle(el)
+        el.style.setProperty('--settle-opacity', style.opacity)
+        el.style.setProperty('--settle-transform', style.transform)
+        el.style.setProperty('--settle-filter', style.filter)
+      }
+      setRetiring(true)
+    }
+  }
   const show = (f: Float, el: Element) => {
     anchor.current = el
+    setRetiring(false)
     setFeedback('')
-    setFloat(f)
+    setFloat({ ...f, cue: ++cue.current })
     gest('stroke', f.side, f.x, f.y)
   }
   useEffect(() => {
     setFloat(null)
+    setRetiring(false)
   }, [side, book.id])
+  useEffect(() => {
+    if (!retiring) return
+    // Also finish if a motion preference change cancels the CSS animation.
+    const timeout = setTimeout(() => { setFloat(null); setRetiring(false) }, 340)
+    return () => clearTimeout(timeout)
+  }, [retiring])
   useLayoutEffect(() => {
     const origin = anchor.current
-    if (!float || !origin) return
+    if (!float || retiring || !origin) return
     origin.classList.add('ink-selected')
     return () => origin.classList.remove('ink-selected')
-  }, [float])
+  }, [float?.cue, retiring])
   useEffect(() => {
     if (!float) return
     const close = (event: PointerEvent) => {
       const target = event.target as HTMLElement
       if (!target.closest('.raised-words') && !anchor.current?.contains(target)) {
-        setFloat(null)
+        dismiss()
       }
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation()
         e.preventDefault()
-        setFloat(null)
+        dismiss()
       }
     }
     document.addEventListener('pointerdown', close, true)
@@ -539,7 +576,7 @@ export default function Correspondence({
       document.removeEventListener('pointerdown', close, true)
       window.removeEventListener('keydown', key, true)
     }
-  }, [float])
+  }, [float, retiring])
   useLayoutEffect(() => {
     const pane = list.current,
       inner = body.current
@@ -548,11 +585,12 @@ export default function Correspondence({
   }, [book.id, scrollMark])
   function scrolled() {
     const pane = list.current!
+    if (retiring) return
     if (float?.side === 'right' && float.kind !== 'undo' && anchor.current) {
       const bounds = anchor.current.getBoundingClientRect(),
         rect = pane.getBoundingClientRect()
       if (!anchor.current.isConnected || bounds.bottom < rect.top || bounds.top > rect.bottom)
-        setFloat(null)
+        dismiss()
       else {
         const point = paperPoint(anchor.current, 'right')
         setFloat((f) => (f ? { ...f, ...point } : null))
@@ -609,7 +647,7 @@ export default function Correspondence({
         aria-hidden={!visible('left')}
         aria-label="左页记忆与档案"
       >
-        <div className="memory-print" data-muted={float?.side === 'left' || undefined}>
+        <div className="memory-print" data-muted={(!retiring && float?.side === 'left') || undefined}>
           {(book.memory || book.profile) && <h1>Marginalia</h1>}
           {(['memory', 'profile'] as const).map((field, i) => book[field] && (
             <section key={field}>
@@ -654,7 +692,7 @@ export default function Correspondence({
         <div
           className="conversation-print"
           data-muted={
-            (float?.side === 'right' && float.kind !== 'actions' && float.kind !== 'undo') || undefined
+            (!retiring && float?.side === 'right' && float.kind !== 'actions' && float.kind !== 'undo') || undefined
           }
         >
           <header className="chapter-fixed">
@@ -700,12 +738,20 @@ export default function Correspondence({
       {float && visible(float.side) && (
         <div className={'raised-sheet rise-' + float.side} aria-live="polite">
           <div
+            key={float.cue}
             ref={floatingRef}
             className={
               'raised-words ' +
               ((isMenu && !isProcess) || float.kind === 'undo' ? 'action-words' : 'detail-words')
             }
             role="dialog"
+            data-retiring={retiring || undefined}
+            onAnimationEnd={(e) => {
+              if (e.target === e.currentTarget && e.animationName === 'settle-ink') {
+                setFloat(null)
+                setRetiring(false)
+              }
+            }}
             data-placement={float.y < .5 ? 'below' : 'above'}
             aria-label={isMenu ? '浮字操作' : isProcess ? '本轮过程' : '浮起的文字'}
             style={
@@ -717,14 +763,14 @@ export default function Correspondence({
             }
           >
             <div className="gold-motes" aria-hidden>
-              {Array.from({ length: 16 }, (_, i) => (
+              {Array.from({ length: 10 }, (_, i) => (
                 <i
                   key={i}
                   style={
                     {
                       '--i': i,
-                      '--dx': Math.sin(i * 7) * 30 + 'px',
-                      '--dy': -8 - (i % 5) * 5 + 'px',
+                      '--dx': Math.sin(i * 7) * 42 + 'px',
+                      '--dy': -14 - (i % 5) * 7 + 'px',
                     } as CSSProperties
                   }
                 />
