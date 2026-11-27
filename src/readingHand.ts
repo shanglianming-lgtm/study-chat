@@ -157,6 +157,7 @@ export function readingHand(avatar: THREE.Group) {
   sun.position.set(-2, 3, -1)
   scene.add(sun)
   let renderer: THREE.WebGLRenderer | undefined,
+    unavailable = false,
     start = 0,
     signal: HandSignal | undefined
   const location = new THREE.Vector3(),
@@ -167,14 +168,14 @@ export function readingHand(avatar: THREE.Group) {
   }
   return {
     play(s: HandSignal, now: number) {
-      if (meshes.length && !reduced.matches) {
+      if (meshes.length && !unavailable && !reduced.matches) {
         signal = s
         start = now
       }
     },
     draw(now: number, rig: DeskReading, camera: THREE.PerspectiveCamera, w: number, h: number) {
       if (reduced.matches) { hide(); return }
-      if (!meshes.length) return
+      if (!meshes.length || unavailable) return
       if (!renderer) {
         try {
           renderer = new THREE.WebGLRenderer({
@@ -184,6 +185,7 @@ export function readingHand(avatar: THREE.Group) {
             premultipliedAlpha: true,
           })
         } catch {
+          unavailable = true
           signal = undefined
           return
         }
