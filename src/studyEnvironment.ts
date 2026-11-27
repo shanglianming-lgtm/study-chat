@@ -86,17 +86,23 @@ export function watchStudyWeather(changed: (weather: Weather) => void) {
     if (enabled) void refresh()
   }
   const visible = () => { if (!document.hidden) void refresh() }
+  const online = () => {
+    // A reconnect is an explicit recovery signal, not the regular poll. Retry a
+    // failed lookup immediately without bypassing the cache after a success.
+    if (lastSuccess < lastAttempt) lastAttempt = -Infinity
+    visible()
+  }
   const timer = window.setInterval(() => void refresh(), 60_000)
   window.addEventListener(preferenceEvent, preference)
   window.addEventListener('storage', preference)
-  window.addEventListener('online', visible)
+  window.addEventListener('online', online)
   document.addEventListener('visibilitychange', visible)
   changed(current); void refresh()
   return () => {
     stopped = true; generation++; controller?.abort(); clearInterval(timer)
     window.removeEventListener(preferenceEvent, preference)
     window.removeEventListener('storage', preference)
-    window.removeEventListener('online', visible)
+    window.removeEventListener('online', online)
     document.removeEventListener('visibilitychange', visible)
   }
 }
