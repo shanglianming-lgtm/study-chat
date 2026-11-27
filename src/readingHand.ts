@@ -23,7 +23,6 @@ export function readingHand(avatar: THREE.Group, software = false) {
     poses = ['point', 'stroke', 'pinch', 'rewind', 'sweep'] as const
   hand.scale.setScalar(.76) // Keep the character branch's page-hand framing.
   const meshes: THREE.Mesh[] = []
-  const inkFraming = { value: 0 }
   const bounds = new THREE.Box3(), relaxedBounds = new THREE.Box3(), fingerBounds = new THREE.Box3()
   const cropCamera = new THREE.PerspectiveCamera()
   avatar.traverse((obj) => {
@@ -145,22 +144,8 @@ export function readingHand(avatar: THREE.Group, software = false) {
       roughness: 0.83,
       side: THREE.DoubleSide,
       transparent: true,
-      depthWrite: false, // Faded wrist fragments must not occlude later skin triangles.
       forceSinglePass: true,
     })
-    // Keep the avatar geometry and .76 scale untouched. This view-only wrist
-    // falloff lets the fingers and a little palm lead the spell instead of a
-    // full forearm covering the leaf. Other hand actions retain their framing.
-    mat.onBeforeCompile = shader => {
-      shader.uniforms.inkFraming = inkFraming
-      shader.uniforms.inkKnuckle = { value: (knuckles[1].z + knuckles[4].z) / 2 - .012 }
-      shader.vertexShader = 'varying float vInkReach;\n' + shader.vertexShader.replace(
-        '#include <project_vertex>', 'vInkReach = transformed.z;\n#include <project_vertex>')
-      shader.fragmentShader = 'uniform float inkFraming; uniform float inkKnuckle; varying float vInkReach;\n' +
-        shader.fragmentShader.replace('#include <dithering_fragment>',
-          '#include <dithering_fragment>\ngl_FragColor.a *= 1.0 - inkFraming * smoothstep(inkKnuckle, 0.008, vInkReach);')
-    }
-    mat.customProgramCacheKey = () => 'reading-hand-wrist-falloff-v1'
     geo.computeBoundingBox() // Includes every absolute morph target.
     bounds.union(geo.boundingBox!)
     relaxedBounds.union(new THREE.Box3().setFromBufferAttribute(
@@ -209,12 +194,10 @@ export function readingHand(avatar: THREE.Group, software = false) {
     if (renderer) renderer.domElement.hidden = true
     signal = undefined
     inking = false
-    inkFraming.value = 0
   }
   return {
     write(side: PageSide, u: number, v: number, alpha: number, rig: DeskReading) {
       inking = true
-      inkFraming.value = 1
       inkOpacity = alpha
       signal = { action: 'stroke', side, u, v, seq: 0 }
       rig.worldPoint(side, 0, 0, 0, inkOrigin)
@@ -233,7 +216,6 @@ export function readingHand(avatar: THREE.Group, software = false) {
     play(s: HandSignal, now: number) {
       if (meshes.length && !unavailable && !reduced.matches) {
         inking = false
-        inkFraming.value = 0
         signal = s
         start = now
         lastPaint = 0
@@ -301,8 +283,15 @@ export function readingHand(avatar: THREE.Group, software = false) {
         hand.position.lerpVectors(entry, location, ease).sub(tip.clone().multiply(hand.scale).applyQuaternion(hand.quaternion))
       }
       if (opacity < .001) { renderer.domElement.hidden = true; return }
+      // Fade the finished small canvas, not overlapping transparent triangles.
+      // This retains solid-skin depth ordering and leaves avatar geometry and
+      // scale untouched; the wrist mask is unrelated to the glyph lifecycle.
+      renderer.domElement.style.opacity = String(opacity)
+      renderer.domElement.style.maskImage = inking
+        ? 'linear-gradient(to bottom, #000 0%, #000 52%, transparent 94%)'
+        : 'none'
       for (const mesh of meshes) {
-        (mesh.material as THREE.MeshStandardMaterial).opacity = opacity
+        (mesh.material as THREE.MeshStandardMaterial).opacity = 1
         mesh.morphTargetInfluences?.forEach((_, i, morphs) => {
           morphs[i] = brush
             ? poses[i] === 'stroke' ? 1 : 0
