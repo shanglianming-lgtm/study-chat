@@ -27,21 +27,25 @@ function paperGrain(anisotropy: number) {
 
 export function finishFolio(renderer: THREE.WebGLRenderer, scene: THREE.Scene, book: THREE.Group,
   wearer: THREE.Group, linen?: THREE.Texture) {
-  // Capture the actual window and lamps once, before the wearer is added. The room lighting is static.
+  // Keep the room-local reflections, but refresh after material lighting changes.
   let reflection: THREE.WebGLRenderTarget | undefined
-  if (renderer.extensions.has('EXT_color_buffer_float')) {
+  const supported = renderer.extensions.has('EXT_color_buffer_float')
+  function captureReflection() {
+    if (!supported) return undefined
     const probe = new THREE.PMREMGenerator(renderer)
-    const visible = book.visible
-    book.visible = false
+    const visible = book.visible, wearerVisible = wearer.visible
+    book.visible = wearer.visible = false
     try {
-      reflection = probe.fromScene(scene, 0, 0.12, 25, { size: 64, position: new THREE.Vector3(0.2, 1.4, 0.3) })
+      return probe.fromScene(scene, 0, 0.12, 25, { size: 64, position: new THREE.Vector3(0.2, 1.4, 0.3) })
     } catch (error) {
       console.warn('Could not capture room reflections for the folio.', error)
     } finally {
       book.visible = visible
+      wearer.visible = wearerVisible
       probe.dispose()
     }
   }
+  reflection = captureReflection()
   const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
   let ticket: THREE.Texture | null = null
   let ticketName: string | undefined
@@ -126,7 +130,20 @@ export function finishFolio(renderer: THREE.WebGLRenderer, scene: THREE.Scene, b
     skin.customProgramCacheKey = () => 'study-palm-occlusion'
     skin.needsUpdate = true
   }
+  let lastReflection = -Infinity, reflectedDay: number | undefined, reflectedLamp: number | undefined
   return {
+    refreshEnvironment(daylight: number, lamp: number, now: number) {
+      if (!supported) return
+      if (reflectedDay === undefined) { reflectedDay = daylight; reflectedLamp = lamp; return }
+      if (now - lastReflection < 3000 || Math.max(Math.abs(daylight - reflectedDay), Math.abs(lamp - reflectedLamp!)) < .06) return
+      const next = captureReflection()
+      if (!next) return
+      for (const material of [...surfaces(book), ...surfaces(wearer)]) {
+        if (material.envMap === reflection?.texture) material.envMap = next.texture
+      }
+      reflection?.dispose(); reflection = next
+      reflectedDay = daylight; reflectedLamp = lamp; lastReflection = now
+    },
     setTitle(name: string) {
       if (ticketName === name || !ticketInk) return
       const next = drawSpineTitle(name)

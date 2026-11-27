@@ -13,6 +13,7 @@ import {
 } from './library'
 import { addBook, chooseBook, editVolume, exportVolume, refreshModule, saveSource } from './shelfStore'
 import { credential, catalog, testKey } from './provider'
+import { onlineWeatherEnabled, setOnlineWeather } from './studyEnvironment'
 
 export function ModelOptions({ library, book }: { library: Library; book: Volume }) {
   return (
@@ -395,6 +396,7 @@ export default function ManagementBook({ library, onClose, singlePage, setSingle
     [provider, setProvider] = useState<Source | null>(null)
   const [newName, setNewName] = useState(''),
     [adding, setAdding] = useState(false)
+  const [weatherEnabled, setWeatherEnabled] = useState(onlineWeatherEnabled)
   useEffect(() => {
     const d = dialog.current!,
       previous = document.activeElement as HTMLElement | null
@@ -487,6 +489,17 @@ export default function ManagementBook({ library, onClose, singlePage, setSingle
                   单页阅读
                 </label>
                 <button onClick={() => exportVolume(book)}>导出本书对话</button>
+              </div>
+              <div className="eink-section">
+                <label className="eink-check">
+                  <input type="checkbox" checked={weatherEnabled} onChange={e => {
+                    setWeatherEnabled(e.target.checked)
+                    setOnlineWeather(e.target.checked)
+                  }} />
+                  窗景跟随当地天气
+                </label>
+                <p>通过 ipapi.co 的 IP 大致位置查询天气，不使用精确定位。关闭或联网失败时按晴天显示；光线始终跟随系统时间，天暗时台灯自动亮起。</p>
+                <small>天气数据：<a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a></small>
               </div>
             </>
           ) : provider ? (

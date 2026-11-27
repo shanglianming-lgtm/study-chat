@@ -4,6 +4,8 @@ import { batchStudy, cushionGeometry, roundedLoop, surfaceGeometry } from './stu
 import { loadStudyAssets } from './studyAssets'
 import { furnishStudy } from './studyFurnishings'
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
+import { clearWeather, environmentAt, watchStudyWeather, type Weather } from './studyEnvironment'
+import { createWeatherView } from './studyWeatherView'
 
 type Point = [number, number, number]
 /** Entirely local geometry/textures. Coordinates are meters, Y is up. */
@@ -89,11 +91,13 @@ export function buildStudy(software = false) {
   }).map
   for (const map of [oak, weave, plaster]) { map.wrapS = map.wrapT = THREE.RepeatWrapping }
   const wood = '#ba8e5c', darkWood = '#977147', linen = '#dfcdb0'
-  scene.add(new THREE.HemisphereLight('#edf2f3', '#d0c8b9', software ? .72 : .38))
+  const hemisphere = new THREE.HemisphereLight('#edf2f3', '#d0c8b9', software ? .72 : .38)
+  scene.add(hemisphere)
+  let windowLight: THREE.RectAreaLight | undefined
   // Avoid LTC integration on CPU renderers; sun, lamps and baked grounding stay.
   if (!software) {
     RectAreaLightUniformsLib.init()
-    const windowLight = new THREE.RectAreaLight('#f4f5ef', .9, 2.8, 2.05)
+    windowLight = new THREE.RectAreaLight('#f4f5ef', .9, 2.8, 2.05)
     windowLight.position.set(2.15, 2.05, -3.28); windowLight.lookAt(2.15, 2.05, 0); scene.add(windowLight)
   }
   const sun = new THREE.DirectionalLight('#fff7e5', 3.5); sun.position.set(4.5, 5.2, -7); sun.target.position.set(-.6, 0, .8); sun.castShadow = true
@@ -230,7 +234,10 @@ export function buildStudy(software = false) {
   const diffuserMaterial = new THREE.MeshStandardMaterial({ color: '#fff0cd', emissive: '#ffe2a0', emissiveIntensity: 1.6, roughness: .6 })
   diffuser.material = diffuserMaterial; materials.set('desk-lamp-diffuser', diffuserMaterial)
   tube([[.155, .59, .02], [.16, .47, .03], [.15, .37, .04]], .003, '#a68a50', lamp); ball([.15, .36, .04], [.012, .018, .012], '#9b814f', lamp)
-  const deskLight = new THREE.PointLight('#ffe1a1', 2.2, 0, 2); deskLight.position.set(1.61, 1.58, -2.895); scene.add(deskLight)
+  const deskLight = new THREE.SpotLight('#ffe1b0', 5, 4, 1.05, .75, 2)
+  deskLight.position.set(1.61, 1.57, -2.895); deskLight.target.position.set(1.95, .97, -2.52)
+  deskLight.castShadow = true; deskLight.shadow.mapSize.set(512, 512); deskLight.shadow.normalBias = .01
+  scene.add(deskLight, deskLight.target)
   const deskBulb = bulb.clone(); deskBulb.position.copy(deskLight.position); scene.add(deskBulb)
   // Cheap soft contact shadows ground furniture without per-frame AO passes.
   const contact = texture(128, 128, ctx => { const g = ctx.createRadialGradient(64, 64, 5, 64, 64, 64); g.addColorStop(0, '#241e18b8'); g.addColorStop(.45, '#241e1870'); g.addColorStop(1, '#241e1800'); ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128) }).map
@@ -238,11 +245,51 @@ export function buildStudy(software = false) {
     const shadow = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: contact, transparent: true, depthWrite: false })); shadow.rotation.x = -Math.PI / 2; shadow.position.set(x, .065, z); scene.add(shadow)
   }
   const furnishings = furnishStudy(scene)
-  batchStudy(scene, furnishings.book, [sofa, furnishings.shelf])
+  batchStudy(scene, furnishings.book, [sofa, furnishings.shelf, bulb, deskBulb])
   const assets = loadStudyAssets({ scene, sofa, floor: floorMat, software, wood: [...materials].filter(([c]) => woods.has(c)).map(([, m]) => m), fabric: [...materials].filter(([c]) => fabrics.has(c)).map(([, m]) => m), textures })
-  return { scene, furnishings, get linen() { return assets.linen }, ready: Promise.all([assets.ready, furnishings.ready]), dispose: () => {
+  const weatherView = createWeatherView(scene)
+  let weather: Weather = clearWeather
+  const stopWeather = watchStudyWeather(next => { weather = next })
+  const state = environmentAt(new Date(), weather)
+  let lastEnvironment = -Infinity
+  const sky = new THREE.Color(), warmSky = new THREE.Color('#f6cba0'), daySky = new THREE.Color('#edf2f3'), nightSky = new THREE.Color('#7189b4')
+  function updateEnvironment(now: number, immediate = false) {
+    // Keep a quiet room idle; animate precipitation at 10fps, not full refresh rate.
+    if (!immediate && now - lastEnvironment < 100) return 0
+    lastEnvironment = now
+    const target = environmentAt(new Date(), weather)
+    let difference = 0
+    for (const key of Object.keys(state) as (keyof typeof state)[]) difference = Math.max(difference, Math.abs(target[key] - state[key]))
+    if (!immediate && difference < .0001 && !state.rain && !state.snow) return 0
+    for (const key of Object.keys(state) as (keyof typeof state)[]) {
+      const delta = target[key] - state[key]
+      state[key] = immediate || Math.abs(delta) < .001 ? target[key] : state[key] + delta * .16
+    }
+    sky.copy(nightSky).lerp(daySky, state.day).lerp(warmSky, state.warm)
+    hemisphere.color.copy(sky)
+    hemisphere.intensity = .075 + (software ? .65 : .33) * state.daylight
+    sun.intensity = 3.5 * state.sun
+    sun.color.copy(daySky).lerp(warmSky, state.warm)
+    sun.position.x = state.sunX
+    sun.position.y = 2.6 + state.day * 2.6
+    if (windowLight) { windowLight.intensity = .05 + .85 * state.daylight; windowLight.color.copy(sky) }
+    scene.environmentIntensity = .006 + .069 * state.daylight
+    glow.intensity = (software ? 4 : 2.4) * state.lamp
+    deskLight.intensity = 5 * state.lamp
+    shade.material.emissiveIntensity = .55 * state.lamp
+    enamel.emissiveIntensity = .35 * state.lamp
+    diffuserMaterial.emissiveIntensity = 1.6 * state.lamp
+    bulb.visible = deskBulb.visible = state.lamp > .02
+    furnishings.setEnvironment(state)
+    weatherView.update(state, now / 1000)
+    return immediate || difference >= .0001 ? 2 : 1
+  }
+  updateEnvironment(0, true)
+  return { scene, furnishings, updateEnvironment, environment: state, get linen() { return assets.linen }, ready: Promise.all([assets.ready, furnishings.ready]).then(() => updateEnvironment(performance.now(), true)), dispose: () => {
+    stopWeather()
+    weatherView.dispose()
     furnishings.dispose()
     assets.dispose()
-    scene.traverse(o => { if (o instanceof THREE.Mesh) { if (o instanceof THREE.InstancedMesh) o.dispose(); o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()) } }); textures.forEach(t => t.dispose()); sun.shadow.map?.dispose()
+    scene.traverse(o => { if (o instanceof THREE.Mesh) { if (o instanceof THREE.InstancedMesh) o.dispose(); o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()) } }); textures.forEach(t => t.dispose()); sun.shadow.map?.dispose(); deskLight.shadow.map?.dispose()
   } }
 }

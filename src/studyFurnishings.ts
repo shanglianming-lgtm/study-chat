@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
 import { createShelfLibrary } from './shelfLibrary'
 import { makeReaderCradle, registerStation, seatRegister } from './shelfMounts'
+import { environmentAt, clearWeather, type Environment } from './studyEnvironment'
 
 export const shelfOrigin = new THREE.Vector3(-1.32, 0.01, -3.12)
 export const windowOrigin = new THREE.Vector3(2.05, 0.045, -3.4)
@@ -111,7 +112,26 @@ export function furnishStudy(scene: THREE.Scene) {
   shelf.add(decor)
   // RoomScene attaches the wearer only after collecting the room's pickable meshes.
   const playerModel = new THREE.Group()
-  const hour = new Date().getHours()
+  const dayBackdrop = new THREE.Group(), duskBackdrop = new THREE.Group()
+  backdrop.add(dayBackdrop, duskBackdrop)
+  let environment = environmentAt(new Date(), clearWeather)
+  function setEnvironment(next: Environment) {
+    environment = next
+    for (const [group, opacity] of [[dayBackdrop, next.day], [duskBackdrop, 1]] as const) {
+      group.visible = opacity > .001
+      group.traverse(node => {
+        if (!(node instanceof THREE.Mesh)) return
+        node.renderOrder = group === dayBackdrop ? -1 : -2
+        for (const m of Array.isArray(node.material) ? node.material : [node.material]) {
+          if (!(m instanceof THREE.MeshBasicMaterial)) continue
+          m.transparent = true; m.depthWrite = false; m.opacity = opacity
+          const tint = new THREE.Color('#ffffff').lerp(new THREE.Color('#8595a4'), next.cloud * .55)
+          tint.multiplyScalar(.28 + next.day * .72)
+          m.color.copy(tint)
+        }
+      })
+    }
+  }
   const ready = Promise.all([
     mount('01_OakBookcase', shelf),
     mount('02_ProjectFolio', book),
@@ -119,7 +139,7 @@ export function furnishStudy(scene: THREE.Scene) {
     mount('Study_Desk', desk),
     mount('Study_Chair', chair),
     mount('Study_ShortWall', nook),
-    mount(hour >= 18 || hour < 6 ? 'Exterior_Dusk' : 'Exterior_Day', backdrop),
+    Promise.all([mount('Exterior_Day', dayBackdrop), mount('Exterior_Dusk', duskBackdrop)]).then(() => setEnvironment(environment)),
     mount('03_DecorBindings', decor),
     mount('Study_Chat_Player', musicPlayer),
     mount('White_Dress_Avatar', playerModel),
@@ -165,6 +185,7 @@ export function furnishStudy(scene: THREE.Scene) {
     playerModel,
     readingTarget,
     ready,
+    setEnvironment,
     get bookOpening() { return bookOpening },
     openBook(amount: number) {
       if (bookAction && bookMixer && amount !== bookOpening) {
